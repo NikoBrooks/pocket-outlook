@@ -1138,9 +1138,9 @@ function switchTab(tab) {
 function setGreeting() {
   const hour = new Date().getHours();
   const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-  const m = ["Good morning, bro.", "Rise and grind.", "Markets are open. Let's go.", "Morning. Coffee first, charts second.", "The tape waits for no one.", "Early bird. The market respects it."];
-  const a = ["Good afternoon, bro.", "Afternoon. How's the tape treating you?", "Midday check-in.", "Still at it. Respect.", "Good afternoon. Stay sharp.", "Eyes on the macro."];
-  const e = ["Good evening, bro.", "Markets are closed — time to reflect.", "Asia opens soon.", "The Fed never sleeps, but you should.", "Tomorrow's another day on the tape.", "Winding down? The futures don't."];
+  const m = ["Good morning, nigga.", "Rise and grind.", "Markets are open. Let's go.", "Morning. Coffee first, charts second.", "The tape waits for no one.", "Early bird. The market respects it."];
+  const a = ["Good afternoon, nigga.", "Afternoon. How's the tape treating you?", "Midday check-in.", "Still at it. Respect.", "Good afternoon. Stay sharp.", "Eyes on the macro."];
+  const e = ["Good evening, nigga.", "Markets are closed — time to reflect.", "Asia opens soon.", "The Fed never sleeps, but you should.", "Tomorrow's another day on the tape.", "Winding down? The futures don't."];
   const n = ["You're up late.", "Burning the midnight oil?", "Late night macro session?", "Still at it. The futures market approves.", "Night owl mode. The Nikkei would agree.", "Tokyo opens in a few hours."];
   let pool = hour >= 5 && hour < 12 ? m : hour >= 12 && hour < 17 ? a : hour >= 17 && hour < 21 ? e : n;
   if (day === 'Monday' && hour >= 5 && hour < 12) pool = [...pool, "New week, new opportunities.", "Monday. Let's make it count."];
