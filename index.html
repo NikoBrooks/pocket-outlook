@@ -1115,9 +1115,14 @@ const FK = 'd6jikipr01qkvh5q2pugd6jikipr01qkvh5q2pv0';
 const FINNHUB = 'https://finnhub.io/api/v1';
 // Multiple proxies tried in order
 const PROXIES = [
+  'https://corsproxy.io/?url=',       // no caching, best for live data
   'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?url=',
   'https://thingproxy.freeboard.io/fetch/',
+];
+// Chart data needs fresh prices — always skip cached proxies
+const CHART_PROXIES = [
+  'https://corsproxy.io/?url=',
+  'https://api.allorigins.win/raw?url=',
 ];
 const PROXY = PROXIES[0];
 
@@ -1193,7 +1198,7 @@ async function fetchYahoo(symbol) {
     for (const yurl of yahooUrls) {
       if (data?.chart?.result?.[0]) break;
       try {
-        const res = await fetch(proxy + encodeURIComponent(yurl));
+        const res = await fetch(proxy + encodeURIComponent(yurl + '&_t=' + Date.now()), {cache: 'no-store'});
         if (!res.ok) continue;
         const j = await res.json();
         if (j?.chart?.result?.[0]) { data = j; break; }
@@ -1383,11 +1388,11 @@ let currentRange = '1y', currentInterval = '1d';
 async function fetchChartData(symbol, range, interval) {
   range = range || currentRange; interval = interval || currentInterval;
   let data;
-  for (const proxy of PROXIES) {
+  for (const proxy of CHART_PROXIES) {
     for (const base of [YAHOO, YAHOO2]) {
       if (data?.chart?.result?.[0]) break;
       try {
-        const res = await fetch(proxy + encodeURIComponent(base + symbol + '?range=' + range + '&interval=' + interval));
+        const res = await fetch(proxy + encodeURIComponent(base + symbol + '?range=' + range + '&interval=' + interval + '&_t=' + Date.now()), {cache: 'no-store'});
         if (!res.ok) continue;
         const j = await res.json();
         if (j?.chart?.result?.[0]) { data = j; break; }
