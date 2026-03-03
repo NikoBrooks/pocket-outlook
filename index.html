@@ -1118,9 +1118,275 @@
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
+const FINNHUB = 'https://finnhub.io/api/v1';
+const FK = 'd6jikipr01qkvh5q2pugd6jikipr01qkvh5q2pv0';
 const PROXY = 'https://corsproxy.io/?url=';
-const YAHOO = 'https://query1.finance.yahoo.com/v8/finance/chart/';
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?api_key=&rss_url=';
+
+// Finnhub symbol map
+const FH_SYMBOLS = {
+  spx:   'SPY',        // S&P 500 via SPY ETF
+  ndx:   'QQQ',        // NASDAQ via QQQ ETF
+  dji:   'DIA',        // Dow via DIA ETF
+  vix:   null,         // VIX - use CBOE:VIX
+  tbill: null,         // Rates via fixed/BLS
+  tny:   null,
+  tny30: null,
+  dxy:   null,
+  gold:  'GLD',        // Gold via GLD ETF
+  oil:   'USO',        // Oil via USO ETF
+};
+
+async function fhQuote(symbol) {
+  const url = FINNHUB + '/quote?symbol=' + symbol + '&token=' + FK;
+  const res = await fetch(url);
+  const d = await res.json();
+  if (!d || d.c == null || d.c === 0) throw new Error('no data');
+  return { price: d.c, change: d.d, pct: d.dp };
+}
+
+async function fhCrypto(fsym) {
+  // Use Finnhub crypto candles or forex
+  const url = FINNHUB + '/crypto/candle?symbol=' + fsym + '&resolution=D&count=2&token=' + FK;
+  const res = await fetch(url);
+  const d = await res.json();
+  if (!d || d.s !== 'ok' || !d.c || d.c.length < 2) throw new Error('no crypto data');
+  const price = d.c[d.c.length - 1];
+  const prev  = d.c[d.c.length - 2];
+  const change = price - prev;
+  const pct = (change / prev) * 100;
+  return { price, change, pct };
+}
+
+async function fetchCoinGecko(id) {
+  const url = PROXY + encodeURIComponent('https://api.coingecko.com/api/v3/simple/price?ids=' + id + '&vs_currencies=usd&include_24hr_change=true');
+  const res = await fetch(url);
+  const data = await res.json();
+  const price = data[id].usd;
+  const pct   = data[id].usd_24h_change;
+  const change = price * (pct / 100);
+  return { price, change, pct };
+}
+
+function setVixLabel(val) {
+  const el = document.getElementById('vix-label');
+  if (!el) return;
+  if (val < 15)      { el.textContent = '● Low Volatility';   el.style.color = 'var(--green)'; }
+  else if (val < 20) { el.textContent = '● Moderate';          el.style.color = '#f0c040'; }
+  else if (val < 30) { el.textContent = '● Elevated Stress';   el.style.color = '#ff9040'; }
+  else               { el.textContent = '● Extreme Fear';      el.style.color = 'var(--red)'; }
+}
+
+function loadFedData() {
+  const lo = 4.25, hi = 4.50;
+  document.getElementById('card-fedrate').className = 'card neutral';
+  document.getElementById('fedrate-price').textContent = lo.toFixed(2) + '% – ' + hi.toFixed(2) + '%';
+  document.getElementById('fedrate-change').textContent = 'Held — Dec 18, 2024';
+  document.getElementById('fedrate-sub').textContent = 'Federal Reserve';
+  const fomcDates = [
+    new Date('2025-03-19'), new Date('2025-05-07'), new Date('2025-06-18'),
+    new Date('2025-07-30'), new Date('2025-09-17'), new Date('2025-10-29'),
+    new Date('2025-12-10'), new Date('2026-01-28'), new Date('2026-03-18'),
+    new Date('2026-04-29'), new Date('2026-06-17'),
+  ];
+  const now = new Date();
+  const next = fomcDates.find(d => d > now);
+  if (next) {
+    const diff = Math.ceil((next - now) / (1000 * 60 * 60 * 24));
+    const dateStr = next.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    document.getElementById('fedmeeting-price').textContent = dateStr;
+    document.getElementById('fedmeeting-sub').textContent = diff + ' days away';
+    document.getElementById('card-fedmeeting').className = 'card neutral';
+  }
+}
+
+let successCount = 0, totalFetches = 0;
+function updateStatus() {
+  document.getElementById('fetch-status').textContent = `${successCount}/${totalFetches} sources loaded`;
+}
+
+async function fetchAll() {
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = '↻'; btn.classList.add('spinning');
+  successCount = 0; totalFetches = 10; updateStatus();
+
+  const ok = (id, price, change, pct, suffix, dec) => {
+    setCard(id, price, change, pct, suffix, dec);
+    successCount++; updateStatus();
+  };
+  const fail = (id) => {
+    const el = document.getElementById(id + '-price');
+    if (el) el.innerHTML = '<span class="error-text">unavailable</span>';
+  };
+
+  const tasks = [
+    // Equities via Finnhub (ETF proxies — same direction, slightly diff price)
+    fhQuote('SPY').then(d  => ok('spx',  d.price, d.change, d.pct)).catch(() => fail('spx')),
+    fhQuote('QQQ').then(d  => ok('ndx',  d.price, d.change, d.pct)).catch(() => fail('ndx')),
+    fhQuote('DIA').then(d  => ok('dji',  d.price, d.change, d.pct)).catch(() => fail('dji')),
+
+    // VIX via Finnhub
+    fhQuote('CBOE:VIX').then(d => {
+      const card = document.getElementById('card-vix');
+      const priceEl = document.getElementById('vix-price');
+      const changeEl = document.getElementById('vix-change');
+      const up = d.change >= 0;
+      card.className = 'card ' + (up ? 'down' : 'up');
+      priceEl.textContent = fmt(d.price);
+      changeEl.className = 'change ' + (up ? 'down' : 'up');
+      changeEl.textContent = (up ? '+' : '') + fmt(d.change) + ' (' + (up ? '+' : '') + fmt(d.pct) + '%)';
+      setVixLabel(d.price); successCount++; updateStatus();
+    }).catch(() => fail('vix')),
+
+    // Treasuries via Finnhub ETFs
+    fhQuote('SHV').then(d  => ok('tbill', d.price, d.change, d.pct)).catch(() => fail('tbill')),
+    fhQuote('IEF').then(d  => ok('tny',   d.price, d.change, d.pct)).catch(() => fail('tny')),
+    fhQuote('TLT').then(d  => ok('tny30', d.price, d.change, d.pct)).catch(() => fail('tny30')),
+
+    // DXY via UUP ETF
+    fhQuote('UUP').then(d  => ok('dxy',   d.price, d.change, d.pct)).catch(() => fail('dxy')),
+
+    // Commodities
+    fhQuote('GLD').then(d  => ok('gold',  d.price, d.change, d.pct)).catch(() => fail('gold')),
+    fhQuote('USO').then(d  => ok('oil',   d.price, d.change, d.pct)).catch(() => fail('oil')),
+  ];
+
+  // Crypto — try Finnhub first, fallback to CoinGecko
+  fhCrypto('BINANCE:BTCUSDT').then(d => ok('btc', d.price, d.change, d.pct))
+    .catch(() => fetchCoinGecko('bitcoin').then(d => ok('btc', d.price, d.change, d.pct)).catch(() => fail('btc')));
+  fhCrypto('BINANCE:ETHUSDT').then(d => ok('eth', d.price, d.change, d.pct))
+    .catch(() => fetchCoinGecko('ethereum').then(d => ok('eth', d.price, d.change, d.pct)).catch(() => fail('eth')));
+
+  // Static
+  document.getElementById('card-cpi').className = 'card neutral';
+  document.getElementById('cpi-price').textContent = '2.9%';
+  document.getElementById('cpi-change').className = 'change neutral';
+  document.getElementById('cpi-change').textContent = 'Monthly BLS Release';
+  document.getElementById('cpi-date').textContent = 'Jan 2025 — Next release Mar 12, 2025';
+
+  await Promise.allSettled(tasks);
+  const now = new Date();
+  document.getElementById('last-updated').textContent = 'Updated ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  btn.textContent = '↻ Refresh'; btn.classList.remove('spinning');
+}
+
+
+
+// ── Charts ──
+const chartInstances = {};
+const chartState = {
+  1: { symbol: 'SPY',  fhSymbol: 'SPY',  label: 'S&P 500 (SPY)' },
+  2: { symbol: 'SHV',  fhSymbol: 'SHV',  label: '3-Mo T-Bill (SHV)' },
+  3: { symbol: 'GLD',  fhSymbol: 'GLD',  label: 'Gold (GLD)' },
+};
+
+// Chart tab symbol map
+const CHART_SYMBOLS = {
+  // Chart 1
+  '%5EGSPC': 'SPY', '%5EIXIC': 'QQQ', '%5EDJI': 'DIA', '%5EVIX': 'CBOE:VIX',
+  // Chart 2
+  '%5EIRX': 'SHV', '%5ETNX': 'IEF', '%5ETYX': 'TLT', 'DX-Y.NYB': 'UUP',
+  // Chart 3
+  'GC%3DF': 'GLD', 'BZ%3DF': 'USO', 'BTC-USD': 'BINANCE:BTCUSDT', 'ETH-USD': 'BINANCE:ETHUSDT',
+};
+
+let currentRange = '1y';
+
+function rangeToFinnhub(range) {
+  const now = Math.floor(Date.now() / 1000);
+  const map = {
+    '1d':  { from: now - 86400,       resolution: '5'  },
+    '5d':  { from: now - 86400*5,     resolution: '30' },
+    '1mo': { from: now - 86400*30,    resolution: 'D'  },
+    '6mo': { from: now - 86400*182,   resolution: 'D'  },
+    '1y':  { from: now - 86400*365,   resolution: 'W'  },
+    'ytd': { from: Math.floor(new Date(new Date().getFullYear(),0,1).getTime()/1000), resolution: 'D' },
+    '5y':  { from: now - 86400*365*5, resolution: 'M'  },
+  };
+  return map[range] || map['1y'];
+}
+
+async function fetchChartData(symbol, range) {
+  // Map old Yahoo symbols to Finnhub
+  const fhSym = CHART_SYMBOLS[symbol] || symbol;
+  const { from, resolution } = rangeToFinnhub(range || currentRange);
+  const to = Math.floor(Date.now() / 1000);
+
+  let url;
+  // Crypto uses crypto/candle, stocks use stock/candle
+  if (fhSym.includes(':')) {
+    url = `${FINNHUB}/crypto/candle?symbol=${fhSym}&resolution=${resolution}&from=${from}&to=${to}&token=${FK}`;
+  } else {
+    url = `${FINNHUB}/stock/candle?symbol=${fhSym}&resolution=${resolution}&from=${from}&to=${to}&token=${FK}`;
+  }
+
+  const res = await fetch(url);
+  const d = await res.json();
+  if (!d || d.s !== 'ok' || !d.t || d.t.length === 0) throw new Error('No chart data');
+
+  const points = d.t.map((ts, i) => {
+    const dt = new Date(ts * 1000);
+    let label;
+    if (resolution === '5' || resolution === '30') {
+      label = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } else if (resolution === 'M') {
+      label = dt.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    } else if (resolution === 'W') {
+      label = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else {
+      label = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    return { x: label, y: d.c[i] };
+  }).filter(p => p.y != null);
+
+  return points;
+}
+
+
+function renderChart(canvasId, points, label) {
+  const chartNum = canvasId.replace('chart', '');
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
+  chartRawPoints[canvasId] = points;
+  const first = points[0].y, last = points[points.length - 1].y;
+  const totalPct = ((last - first) / first) * 100;
+  const isUp = last >= first;
+  const lineColor = isUp ? '#00d97e' : '#ff4d6a';
+  const fillColor = isUp ? 'rgba(0,217,126,0.07)' : 'rgba(255,77,106,0.07)';
+  const step = Math.max(1, Math.floor(points.length / 80));
+  const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+  setPctBadge(chartNum, totalPct);
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: sampled.map(p => p.x), datasets: [{ data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10, callbacks: { label: (item) => ' ' + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) } }
+      },
+      scales: {
+        x: { ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
+        y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 5, callback: (v) => v >= 1000 ? v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } }
+      }
+    }
+  });
+  attachDragMeasure(canvasId, chartNum);
+}
+
+
+async function loadChart(chartNum, range) {
+  const state = chartState[chartNum];
+  const canvasId = 'chart' + chartNum;
+  const loadingEl = document.getElementById(canvasId + '-loading');
+  loadingEl.classList.remove('hidden'); loadingEl.textContent = 'Loading chart...';
+  try {
+    const points = await fetchChartData(state.symbol, range);
+    if (points.length === 0) throw new Error('No data');
+    loadingEl.classList.add('hidden');
+    renderChart(canvasId, points, state.label);
+  } catch (e) { loadingEl.textContent = 'Chart unavailable'; }
+}
 
 async function loadTicker(handle) {
   handle = handle.replace(/^@/, '').trim();
@@ -1173,484 +1439,32 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// ── Tab Navigation ──
-function switchTab(tab) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.remove('hidden');
-  event.target.classList.add('active');
-}
-
-// ── Greeting ──
-function setGreeting() {
-  const hour = new Date().getHours();
-  const day  = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-  const morningLines = [
-    "Good morning, bro.", "Rise and grind.", "Markets are open. Let's go.",
-    "Morning. Coffee first, charts second.", "The tape waits for no one.", "Early bird. The market respects it.",
-  ];
-  const afternoonLines = [
-    "Good afternoon, bro.", "Afternoon. How's the tape treating you?", "Midday check-in.",
-    "Still at it. Respect.", "Good afternoon. Stay sharp.", "Eyes on the macro.",
-  ];
-  const eveningLines = [
-    "Good evening, bro.", "Markets are closed — time to reflect.", "Asia opens soon.",
-    "The Fed never sleeps, but you should.", "Tomorrow's another day on the tape.", "Winding down? The futures don't.",
-  ];
-  const nightLines = [
-    "You're up late.", "Burning the midnight oil?", "Late night macro session?",
-    "Still at it. The futures market approves.", "Night owl mode. The Nikkei would agree.", "Tokyo opens in a few hours.",
-  ];
-  let pool = hour >= 5 && hour < 12 ? morningLines : hour >= 12 && hour < 17 ? afternoonLines : hour >= 17 && hour < 21 ? eveningLines : nightLines;
-  if (day === 'Monday' && hour >= 5 && hour < 12) pool = [...pool, "New week, new opportunities.", "Monday. Let's make it count."];
-  if (day === 'Friday' && hour >= 12 && hour < 17) pool = [...pool, "It's Friday. Finish strong.", "Last trading day of the week."];
-  const subLines = [
-    `${day} · ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
-    "Your personal market dashboard", `${day} · Markets at a glance`,
-    "Stay sharp. Stay informed.", "Global markets · Live data",
-  ];
-  document.getElementById('greeting-text').textContent = pool[Math.floor(Math.random() * pool.length)];
-  document.getElementById('greeting-sub').textContent  = subLines[Math.floor(Math.random() * subLines.length)];
-}
-
-// ── Formatters ──
-function fmt(n, decimals = 2) {
-  if (n == null || isNaN(n)) return '—';
-  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-}
-function fmtLarge(n) {
-  if (n == null || isNaN(n)) return '—';
-  if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-  return fmt(n);
-}
-
-function setCard(id, value, change, changePct, suffix = '', decimals = 2) {
-  const card = document.getElementById('card-' + id);
-  const priceEl = document.getElementById(id + '-price');
-  const changeEl = document.getElementById(id + '-change');
-  const pctEl = document.getElementById(id + '-pct');
-  const up = change >= 0;
-  const dir = up ? 'up' : 'down';
-  card.className = 'card ' + dir;
-  const useDollar = ['spx','ndx','dji','gold','oil','btc','eth','dxy'].includes(id);
-  const useLarge  = ['spx','ndx','dji','gold','btc','eth'].includes(id);
-  priceEl.textContent = (useDollar ? '$' : '') + (useLarge ? fmtLarge(value) : fmt(value, decimals)) + suffix;
-  if (changeEl) { changeEl.className = 'change ' + dir; changeEl.textContent = (up ? '+' : '') + fmt(change, decimals); }
-  if (pctEl && changePct != null) {
-    pctEl.textContent = (up ? '▲' : '▼') + ' ' + Math.abs(fmt(changePct)) + '%';
-    pctEl.style.color = up ? 'var(--green)' : 'var(--red)';
-  }
-}
-
-async function fetchYahoo(symbol) {
-  const urls = [
-    PROXY + encodeURIComponent(YAHOO + symbol + '?range=1d&interval=1m&corsproxy=1'),
-    'https://corsproxy.io/?url=' + encodeURIComponent(YAHOO + symbol + '?range=1d&interval=1m'),
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(YAHOO2 + symbol + '?range=1d&interval=1m'),
-  ];
-  let res;
-  for (const u of urls) {
-    try { res = await fetch(u); if (res.ok) break; } catch(e) {}
-  }
-  if (!res || !res.ok) throw new Error('fetch failed');
-  const data = await res.json();
-  const meta = data.chart.result[0].meta;
-  const price = meta.regularMarketPrice;
-  const prev = meta.previousClose || meta.chartPreviousClose;
-  const change = price - prev;
-  const pct = (change / prev) * 100;
-  return { price, change, pct };
-}
-
-async function fetchCrypto(id) {
-  const url = 'https://corsproxy.io/?url=' + encodeURIComponent(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd&include_24hr_change=true`);
-  const res = await fetch(url);
-  const data = await res.json();
-  const price = data[id].usd;
-  const pct = data[id].usd_24h_change;
-  const change = price * (pct / 100);
-  return { price, change, pct };
-}
-
-function setVixLabel(val) {
-  const el = document.getElementById('vix-label');
-  if (!el) return;
-  if (val < 15)      { el.textContent = '● Low Volatility';   el.style.color = 'var(--green)'; }
-  else if (val < 20) { el.textContent = '● Moderate';          el.style.color = '#f0c040'; }
-  else if (val < 30) { el.textContent = '● Elevated Stress';   el.style.color = '#ff9040'; }
-  else               { el.textContent = '● Extreme Fear';      el.style.color = 'var(--red)'; }
-}
-
-function loadFedData() {
-  const lo = 4.25, hi = 4.50;
-  document.getElementById('card-fedrate').className = 'card neutral';
-  document.getElementById('fedrate-price').textContent = lo.toFixed(2) + '% – ' + hi.toFixed(2) + '%';
-  document.getElementById('fedrate-change').textContent = 'Held — Dec 18, 2024';
-  document.getElementById('fedrate-sub').textContent = 'Federal Reserve';
-  const fomcDates = [
-    new Date('2025-03-19'), new Date('2025-05-07'), new Date('2025-06-18'),
-    new Date('2025-07-30'), new Date('2025-09-17'), new Date('2025-10-29'),
-    new Date('2025-12-10'), new Date('2026-01-28'), new Date('2026-03-18'),
-    new Date('2026-04-29'), new Date('2026-06-17'),
-  ];
-  const now = new Date();
-  const next = fomcDates.find(d => d > now);
-  if (next) {
-    const diff = Math.ceil((next - now) / (1000 * 60 * 60 * 24));
-    const dateStr = next.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    document.getElementById('fedmeeting-price').textContent = dateStr;
-    document.getElementById('fedmeeting-sub').textContent = diff + ' days away';
-    document.getElementById('card-fedmeeting').className = 'card neutral';
-  }
-}
-
-let successCount = 0, totalFetches = 0;
-function updateStatus() {
-  document.getElementById('fetch-status').textContent = `${successCount}/${totalFetches} sources loaded`;
-}
-
-async function fetchAll() {
-  const btn = document.getElementById('refresh-btn');
-  btn.textContent = '↻'; btn.classList.add('spinning');
-  successCount = 0; totalFetches = 11; updateStatus();
-  const tasks = [
-    fetchYahoo('%5EGSPC').then(d => { setCard('spx', d.price, d.change, d.pct); successCount++; updateStatus(); }).catch(() => { document.getElementById('spx-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('%5EIXIC').then(d => { setCard('ndx', d.price, d.change, d.pct); successCount++; updateStatus(); }).catch(() => { document.getElementById('ndx-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('%5EDJI').then(d => { setCard('dji', d.price, d.change, d.pct); successCount++; updateStatus(); }).catch(() => { document.getElementById('dji-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('%5EVIX').then(d => {
-      const card = document.getElementById('card-vix');
-      const priceEl = document.getElementById('vix-price');
-      const changeEl = document.getElementById('vix-change');
-      const up = d.change >= 0;
-      card.className = 'card ' + (up ? 'down' : 'up');
-      priceEl.textContent = fmt(d.price);
-      changeEl.className = 'change ' + (up ? 'down' : 'up');
-      changeEl.textContent = (up ? '+' : '') + fmt(d.change) + ' (' + (up ? '+' : '') + fmt(d.pct) + '%)';
-      setVixLabel(d.price); successCount++; updateStatus();
-    }).catch(() => { document.getElementById('vix-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('%5ETNX').then(d => { setCard('tny', d.price, d.change, d.pct, '%', 3); successCount++; updateStatus(); }).catch(() => { document.getElementById('tny-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('%5EIRX').then(d => { setCard('tbill', d.price, d.change, d.pct, '%', 3); successCount++; updateStatus(); }).catch(() => { document.getElementById('tbill-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('%5ETYX').then(d => { setCard('tny30', d.price, d.change, d.pct, '%', 3); successCount++; updateStatus(); }).catch(() => { document.getElementById('tny30-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('DX-Y.NYB').then(d => { setCard('dxy', d.price, d.change, d.pct); successCount++; updateStatus(); }).catch(() => { document.getElementById('dxy-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('GC%3DF').then(d => { setCard('gold', d.price, d.change, d.pct); successCount++; updateStatus(); }).catch(() => { document.getElementById('gold-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchYahoo('BZ%3DF').then(d => { setCard('oil', d.price, d.change, d.pct); successCount++; updateStatus(); }).catch(() => { document.getElementById('oil-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-    fetchCrypto('bitcoin').then(d => { setCard('btc', d.price, d.change, d.pct); successCount++; updateStatus(); }).catch(() => { document.getElementById('btc-price').innerHTML = '<span class="error-text">unavailable</span>'; }),
-  ];
-  fetchCrypto('ethereum').then(d => { setCard('eth', d.price, d.change, d.pct); }).catch(() => { document.getElementById('eth-price').innerHTML = '<span class="error-text">unavailable</span>'; });
-  document.getElementById('card-cpi').className = 'card neutral';
-  document.getElementById('cpi-price').textContent = '2.9%';
-  document.getElementById('cpi-change').className = 'change neutral';
-  document.getElementById('cpi-change').textContent = 'Monthly BLS Release';
-  document.getElementById('cpi-date').textContent = 'Jan 2025 — Next release Mar 12, 2025';
-  await Promise.allSettled(tasks);
-  const now = new Date();
-  document.getElementById('last-updated').textContent = 'Updated ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  btn.textContent = '↻ Refresh'; btn.classList.remove('spinning');
-}
-
-// ── Charts ──
-const chartInstances = {};
-const chartState = {
-  1: { symbol: '%5EGSPC', label: 'S&P 500' },
-  2: { symbol: '%5EIRX', label: '3-Mo T-Bill' },
-  3: { symbol: 'GC%3DF', label: 'Gold Futures' },
-};
-let currentRange = '1y', currentInterval = '1d';
-
-async function fetchChartData(symbol, range, interval) {
-  range = range || currentRange; interval = interval || currentInterval;
-  let url;
-  if (range === 'ytd') {
-    const now = new Date();
-    const janFirst = Math.floor(new Date(now.getFullYear(), 0, 1).getTime() / 1000);
-    const today = Math.floor(now.getTime() / 1000);
-    url = PROXY + encodeURIComponent(YAHOO + symbol + '?period1=' + janFirst + '&period2=' + today + '&interval=1d');
-    interval = '1d';
-  } else {
-    url = PROXY + encodeURIComponent(YAHOO + symbol + '?range=' + range + '&interval=' + interval);
-  }
-  const res = await fetch(url);
-  const data = await res.json();
-  const result = data.chart.result[0];
-  const timestamps = result.timestamp;
-  const closes = result.indicators.quote[0].close;
-  const points = [];
-  for (let i = 0; i < timestamps.length; i++) {
-    if (closes[i] != null) {
-      const d = new Date(timestamps[i] * 1000);
-      let label;
-      if (interval === '5m' || interval === '30m') label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-      else if (interval === '1wk') label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-      else label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      points.push({ x: label, y: closes[i] });
-    }
-  }
-  return points;
-}
-
-const chartRawPoints = {};
-
-function setPctBadge(chartNum, pct) {
-  const el = document.getElementById('chart' + chartNum + '-pct');
-  if (!el) return;
-  const up = pct >= 0;
-  el.textContent = (up ? '+' : '') + pct.toFixed(2) + '%';
-  el.className = 'chart-pct-badge ' + (up ? 'up' : 'down');
-}
-
-function attachDragMeasure(canvasId, chartNum) {
-  const canvas = document.getElementById(canvasId);
-  const dragEl = document.getElementById('chart' + chartNum + '-drag-pct');
-  if (!canvas || !dragEl) return;
-  let isDragging = false, dragStartX = null;
-  canvas.addEventListener('mousedown', (e) => {
-    isDragging = true; dragStartX = e.offsetX; dragEl.classList.remove('visible');
-  });
-  canvas.addEventListener('mousemove', (e) => {
-    if (!isDragging || dragStartX === null) return;
-    const dragEndX = e.offsetX;
-    const chart = chartInstances[canvasId];
-    if (!chart) return;
-    const points = chartRawPoints[canvasId];
-    if (!points || points.length === 0) return;
-    const step = Math.max(1, Math.floor(points.length / 80));
-    const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
-    const area = chart.chartArea;
-    if (!area) return;
-    const totalWidth = area.right - area.left;
-    const startRatio = Math.max(0, Math.min(1, (Math.min(dragStartX, dragEndX) - area.left) / totalWidth));
-    const endRatio   = Math.max(0, Math.min(1, (Math.max(dragStartX, dragEndX) - area.left) / totalWidth));
-    const startIdx = Math.floor(startRatio * (sampled.length - 1));
-    const endIdx   = Math.min(sampled.length - 1, Math.floor(endRatio * (sampled.length - 1)));
-    if (endIdx <= startIdx) return;
-    const startVal = sampled[startIdx].y, endVal = sampled[endIdx].y;
-    const pct = ((endVal - startVal) / startVal) * 100;
-    const up = pct >= 0;
-    dragEl.textContent = (up ? '+' : '') + pct.toFixed(2) + '%  •  ' + sampled[startIdx].x + ' → ' + sampled[endIdx].x;
-    dragEl.className = 'chart-drag-pct visible ' + (up ? 'up' : 'down');
-  });
-  canvas.addEventListener('mouseup', () => { isDragging = false; });
-  canvas.addEventListener('mouseleave', () => {
-    isDragging = false;
-    setTimeout(() => dragEl.classList.remove('visible'), 1800);
-  });
-}
-
-const chartRawPoints = {};
-
-function setPctBadge(chartNum, pct) {
-  const el = document.getElementById('chart' + chartNum + '-pct');
-  if (!el) return;
-  const up = pct >= 0;
-  el.textContent = (up ? '+' : '') + pct.toFixed(2) + '%';
-  el.className = 'chart-pct-badge ' + (up ? 'up' : 'down');
-}
-
-function attachDragMeasure(canvasId, chartNum) {
-  const canvas = document.getElementById(canvasId);
-  const dragEl = document.getElementById('chart' + chartNum + '-drag-pct');
-  if (!canvas || !dragEl) return;
-  let isDragging = false, dragStartX = null;
-  canvas.addEventListener('mousedown', (e) => {
-    isDragging = true; dragStartX = e.offsetX; dragEl.classList.remove('visible');
-  });
-  canvas.addEventListener('mousemove', (e) => {
-    if (!isDragging || dragStartX === null) return;
-    const dragEndX = e.offsetX;
-    const chart = chartInstances[canvasId];
-    if (!chart) return;
-    const points = chartRawPoints[canvasId];
-    if (!points || points.length === 0) return;
-    const step = Math.max(1, Math.floor(points.length / 80));
-    const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
-    const area = chart.chartArea;
-    if (!area) return;
-    const totalWidth = area.right - area.left;
-    const startRatio = Math.max(0, Math.min(1, (Math.min(dragStartX, dragEndX) - area.left) / totalWidth));
-    const endRatio   = Math.max(0, Math.min(1, (Math.max(dragStartX, dragEndX) - area.left) / totalWidth));
-    const startIdx = Math.floor(startRatio * (sampled.length - 1));
-    const endIdx   = Math.min(sampled.length - 1, Math.floor(endRatio * (sampled.length - 1)));
-    if (endIdx <= startIdx) return;
-    const startVal = sampled[startIdx].y, endVal = sampled[endIdx].y;
-    const pct = ((endVal - startVal) / startVal) * 100;
-    const up = pct >= 0;
-    dragEl.textContent = (up ? '+' : '') + pct.toFixed(2) + '%  •  ' + sampled[startIdx].x + ' → ' + sampled[endIdx].x;
-    dragEl.className = 'chart-drag-pct visible ' + (up ? 'up' : 'down');
-  });
-  canvas.addEventListener('mouseup', () => { isDragging = false; });
-  canvas.addEventListener('mouseleave', () => {
-    isDragging = false;
-    setTimeout(() => dragEl.classList.remove('visible'), 1800);
-  });
-}
-
-const chartRawPoints = {};
-
-function setPctBadge(chartNum, pct) {
-  const el = document.getElementById('chart' + chartNum + '-pct');
-  if (!el) return;
-  const up = pct >= 0;
-  el.textContent = (up ? '+' : '') + pct.toFixed(2) + '%';
-  el.className = 'chart-pct-badge ' + (up ? 'up' : 'down');
-}
-
-function attachDragMeasure(canvasId, chartNum) {
-  const canvas = document.getElementById(canvasId);
-  const dragEl = document.getElementById('chart' + chartNum + '-drag-pct');
-  if (!canvas || !dragEl) return;
-  let isDragging = false, dragStartX = null;
-  canvas.addEventListener('mousedown', (e) => {
-    isDragging = true; dragStartX = e.offsetX; dragEl.classList.remove('visible');
-  });
-  canvas.addEventListener('mousemove', (e) => {
-    if (!isDragging || dragStartX === null) return;
-    const dragEndX = e.offsetX;
-    const chart = chartInstances[canvasId];
-    if (!chart) return;
-    const points = chartRawPoints[canvasId];
-    if (!points || points.length === 0) return;
-    const step = Math.max(1, Math.floor(points.length / 80));
-    const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
-    const area = chart.chartArea;
-    if (!area) return;
-    const totalWidth = area.right - area.left;
-    const startRatio = Math.max(0, Math.min(1, (Math.min(dragStartX, dragEndX) - area.left) / totalWidth));
-    const endRatio   = Math.max(0, Math.min(1, (Math.max(dragStartX, dragEndX) - area.left) / totalWidth));
-    const startIdx = Math.floor(startRatio * (sampled.length - 1));
-    const endIdx   = Math.min(sampled.length - 1, Math.floor(endRatio * (sampled.length - 1)));
-    if (endIdx <= startIdx) return;
-    const startVal = sampled[startIdx].y, endVal = sampled[endIdx].y;
-    const pct = ((endVal - startVal) / startVal) * 100;
-    const up = pct >= 0;
-    dragEl.textContent = (up ? '+' : '') + pct.toFixed(2) + '%  •  ' + sampled[startIdx].x + ' → ' + sampled[endIdx].x;
-    dragEl.className = 'chart-drag-pct visible ' + (up ? 'up' : 'down');
-  });
-  canvas.addEventListener('mouseup', () => { isDragging = false; });
-  canvas.addEventListener('mouseleave', () => {
-    isDragging = false;
-    setTimeout(() => dragEl.classList.remove('visible'), 1800);
-  });
-}
-
-const chartRawPoints = {};
-
-function setPctBadge(chartNum, pct) {
-  const el = document.getElementById('chart' + chartNum + '-pct');
-  if (!el) return;
-  const up = pct >= 0;
-  el.textContent = (up ? '+' : '') + pct.toFixed(2) + '%';
-  el.className = 'chart-pct-badge ' + (up ? 'up' : 'down');
-}
-
-function attachDragMeasure(canvasId, chartNum) {
-  const canvas = document.getElementById(canvasId);
-  const dragEl = document.getElementById('chart' + chartNum + '-drag-pct');
-  if (!canvas || !dragEl) return;
-  let isDragging = false, dragStartX = null;
-  canvas.addEventListener('mousedown', (e) => {
-    isDragging = true; dragStartX = e.offsetX; dragEl.classList.remove('visible');
-  });
-  canvas.addEventListener('mousemove', (e) => {
-    if (!isDragging || dragStartX === null) return;
-    const dragEndX = e.offsetX;
-    const chart = chartInstances[canvasId];
-    if (!chart) return;
-    const points = chartRawPoints[canvasId];
-    if (!points || points.length === 0) return;
-    const step = Math.max(1, Math.floor(points.length / 80));
-    const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
-    const area = chart.chartArea;
-    if (!area) return;
-    const totalWidth = area.right - area.left;
-    const startRatio = Math.max(0, Math.min(1, (Math.min(dragStartX, dragEndX) - area.left) / totalWidth));
-    const endRatio   = Math.max(0, Math.min(1, (Math.max(dragStartX, dragEndX) - area.left) / totalWidth));
-    const startIdx = Math.floor(startRatio * (sampled.length - 1));
-    const endIdx   = Math.min(sampled.length - 1, Math.floor(endRatio * (sampled.length - 1)));
-    if (endIdx <= startIdx) return;
-    const startVal = sampled[startIdx].y, endVal = sampled[endIdx].y;
-    const pct = ((endVal - startVal) / startVal) * 100;
-    const up = pct >= 0;
-    dragEl.textContent = (up ? '+' : '') + pct.toFixed(2) + '%  •  ' + sampled[startIdx].x + ' → ' + sampled[endIdx].x;
-    dragEl.className = 'chart-drag-pct visible ' + (up ? 'up' : 'down');
-  });
-  canvas.addEventListener('mouseup', () => { isDragging = false; });
-  canvas.addEventListener('mouseleave', () => {
-    isDragging = false;
-    setTimeout(() => dragEl.classList.remove('visible'), 1800);
-  });
-}
-
-function renderChart(canvasId, points, label) {
-  const chartNum = canvasId.replace('chart', '');
-  const ctx = document.getElementById(canvasId).getContext('2d');
-  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
-  chartRawPoints[canvasId] = points;
-  const first = points[0].y, last = points[points.length - 1].y;
-  const totalPct = ((last - first) / first) * 100;
-  const isUp = last >= first;
-  const lineColor = isUp ? '#00d97e' : '#ff4d6a';
-  const fillColor = isUp ? 'rgba(0,217,126,0.07)' : 'rgba(255,77,106,0.07)';
-  const step = Math.max(1, Math.floor(points.length / 80));
-  const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
-  setPctBadge(chartNum, totalPct);
-  chartInstances[canvasId] = new Chart(ctx, {
-    type: 'line',
-    data: { labels: sampled.map(p => p.x), datasets: [{ data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-      plugins: {
-        legend: { display: false },
-        tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10, callbacks: { label: (item) => ' ' + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) } }
-      },
-      scales: {
-        x: { ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
-        y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 5, callback: (v) => v >= 1000 ? v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } }
-      }
-    }
-  });
-  attachDragMeasure(canvasId, chartNum);
-}
-
-
-async function loadChart(chartNum, range, interval) {
-  const state = chartState[chartNum];
-  const canvasId = 'chart' + chartNum;
-  const loadingEl = document.getElementById(canvasId + '-loading');
-  loadingEl.classList.remove('hidden'); loadingEl.textContent = 'Loading chart...';
-  try {
-    const points = await fetchChartData(state.symbol, range, interval);
-    if (points.length === 0) throw new Error('No data');
-    loadingEl.classList.add('hidden');
-    renderChart(canvasId, points, state.label);
-  } catch (e) { loadingEl.textContent = 'Chart unavailable'; }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.chart-tabs').forEach(tabGroup => {
     tabGroup.addEventListener('click', (e) => {
       const btn = e.target.closest('.chart-tab');
       if (!btn) return;
       const chartNum = parseInt(tabGroup.dataset.chart);
-      chartState[chartNum] = { symbol: btn.dataset.symbol, label: btn.dataset.label };
+      const rawSym = btn.dataset.symbol; chartState[chartNum] = { symbol: rawSym, fhSymbol: CHART_SYMBOLS[rawSym] || rawSym, label: btn.dataset.label };
       document.getElementById('chart' + chartNum + '-title').textContent = btn.dataset.label;
       tabGroup.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
-      loadChart(chartNum, currentRange, currentInterval);
+      loadChart(chartNum, currentRange);
     });
   });
   document.querySelectorAll('.range-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.range-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      currentRange = btn.dataset.range; currentInterval = btn.dataset.interval;
-      loadAllCharts(currentRange, currentInterval);
+      currentRange = btn.dataset.range;
+      loadAllCharts(currentRange);
     });
   });
 });
 
-function loadAllCharts(range, interval) {
-  range = range || currentRange; interval = interval || currentInterval;
-  loadChart(1, range, interval); loadChart(2, range, interval); loadChart(3, range, interval);
+function loadAllCharts(range) {
+  range = range || currentRange;
+  loadChart(1, range); loadChart(2, range); loadChart(3, range);
 }
 
 // ── News ──
