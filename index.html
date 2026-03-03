@@ -1118,9 +1118,9 @@
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
-const PROXY = 'https://api.allorigins.win/raw?url=';
+const PROXY = 'https://corsproxy.io/?url=';
 const YAHOO = 'https://query1.finance.yahoo.com/v8/finance/chart/';
-const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
+const RSS2JSON = 'https://api.rss2json.com/v1/api.json?api_key=&rss_url=';
 
 async function loadTicker(handle) {
   handle = handle.replace(/^@/, '').trim();
@@ -1243,8 +1243,16 @@ function setCard(id, value, change, changePct, suffix = '', decimals = 2) {
 }
 
 async function fetchYahoo(symbol) {
-  const url = PROXY + encodeURIComponent(YAHOO + symbol + '?range=1d&interval=1m');
-  const res = await fetch(url);
+  const urls = [
+    PROXY + encodeURIComponent(YAHOO + symbol + '?range=1d&interval=1m&corsproxy=1'),
+    'https://corsproxy.io/?url=' + encodeURIComponent(YAHOO + symbol + '?range=1d&interval=1m'),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(YAHOO2 + symbol + '?range=1d&interval=1m'),
+  ];
+  let res;
+  for (const u of urls) {
+    try { res = await fetch(u); if (res.ok) break; } catch(e) {}
+  }
+  if (!res || !res.ok) throw new Error('fetch failed');
   const data = await res.json();
   const meta = data.chart.result[0].meta;
   const price = meta.regularMarketPrice;
@@ -1255,7 +1263,7 @@ async function fetchYahoo(symbol) {
 }
 
 async function fetchCrypto(id) {
-  const url = PROXY + encodeURIComponent(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd&include_24hr_change=true`);
+  const url = 'https://corsproxy.io/?url=' + encodeURIComponent(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd&include_24hr_change=true`);
   const res = await fetch(url);
   const data = await res.json();
   const price = data[id].usd;
