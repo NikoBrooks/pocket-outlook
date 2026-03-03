@@ -1118,12 +1118,16 @@
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
-const PROXY = 'https://corsproxy.io/?url=';
-const YAHOO = 'https://query1.finance.yahoo.com/v8/finance/chart/';
-const YAHOO2 = 'https://query2.finance.yahoo.com/v8/finance/chart/';
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
 const FK = 'd6jikipr01qkvh5q2pugd6jikipr01qkvh5q2pv0';
 const FINNHUB = 'https://finnhub.io/api/v1';
+// Multiple proxies tried in order
+const PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?url=',
+  'https://thingproxy.freeboard.io/fetch/',
+];
+const PROXY = PROXIES[0];
 
 // ── Tab Navigation ──
 function switchTab(tab) {
@@ -1184,19 +1188,26 @@ function setCard(id, value, change, changePct, suffix = '', decimals = 2) {
 }
 
 // ── Data Fetching ──
+const YAHOO = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+const YAHOO2 = 'https://query2.finance.yahoo.com/v8/finance/chart/';
+
 async function fetchYahoo(symbol) {
-  const targets = [
-    PROXY + encodeURIComponent(YAHOO + symbol + '?range=1d&interval=1m'),
-    PROXY + encodeURIComponent(YAHOO2 + symbol + '?range=1d&interval=1m'),
+  const yahooUrls = [
+    YAHOO + symbol + '?range=1d&interval=1m',
+    YAHOO2 + symbol + '?range=1d&interval=1m',
   ];
   let data;
-  for (const url of targets) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      data = await res.json();
+  for (const proxy of PROXIES) {
+    for (const yurl of yahooUrls) {
       if (data?.chart?.result?.[0]) break;
-    } catch(e) {}
+      try {
+        const res = await fetch(proxy + encodeURIComponent(yurl));
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j?.chart?.result?.[0]) { data = j; break; }
+      } catch(e) {}
+    }
+    if (data?.chart?.result?.[0]) break;
   }
   if (!data?.chart?.result?.[0]) throw new Error('No data for ' + symbol);
   const meta = data.chart.result[0].meta;
@@ -1217,12 +1228,19 @@ async function fetchFinnhub(symbol) {
 }
 
 async function fetchCrypto(id) {
-  const url = PROXY + encodeURIComponent('https://api.coingecko.com/api/v3/simple/price?ids=' + id + '&vs_currencies=usd&include_24hr_change=true');
-  const res = await fetch(url);
-  const data = await res.json();
-  const price = data[id].usd;
-  const pct = data[id].usd_24h_change;
-  return { price, change: price * (pct / 100), pct };
+  const cgUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=' + id + '&vs_currencies=usd&include_24hr_change=true';
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(cgUrl));
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (!data[id]) continue;
+      const price = data[id].usd;
+      const pct = data[id].usd_24h_change;
+      return { price, change: price * (pct / 100), pct };
+    } catch(e) {}
+  }
+  throw new Error('Crypto fetch failed for ' + id);
 }
 
 function setVixLabel(val) {
@@ -1313,7 +1331,7 @@ async function loadTicker(handle) {
     if (tw.length) break;
     try { const r=await fetch(RSS2JSON+encodeURIComponent(u)+'&count=12'); const d=await r.json(); if(d.status==='ok'&&d.items&&d.items.length){tw=d.items.map(i=>{const el=document.createElement('div');el.innerHTML=i.description||i.title||'';return(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,240);}).filter(x=>x.length>8);} } catch(e){}
     if (tw.length) break;
-    try { const r=await fetch(PROXY+encodeURIComponent(u)); const txt=await r.text(); const xml=new DOMParser().parseFromString(txt,'text/xml'); const items=Array.from(xml.querySelectorAll('item')).slice(0,12); if(items.length){tw=items.map(n=>{const el=document.createElement('div');el.innerHTML=n.querySelector('description')?.textContent||n.querySelector('title')?.textContent||'';return(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,240);}).filter(x=>x.length>8);} } catch(e){}
+    try { const r=await fetch(PROXIES[0]+encodeURIComponent(u)); const txt=await r.text(); const xml=new DOMParser().parseFromString(txt,'text/xml'); const items=Array.from(xml.querySelectorAll('item')).slice(0,12); if(items.length){tw=items.map(n=>{const el=document.createElement('div');el.innerHTML=n.querySelector('description')?.textContent||n.querySelector('title')?.textContent||'';return(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,240);}).filter(x=>x.length>8);} } catch(e){}
   }
   if (!tw.length) { t.innerHTML = '<span class="tkmsg">@' + handle + ' feed unavailable — try another</span>'; t.style.animation = 'none'; return; }
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1335,13 +1353,18 @@ let currentRange = '1y', currentInterval = '1d';
 
 async function fetchChartData(symbol, range, interval) {
   range = range || currentRange; interval = interval || currentInterval;
-  const targets = [
-    PROXY + encodeURIComponent(YAHOO + symbol + '?range=' + range + '&interval=' + interval),
-    PROXY + encodeURIComponent(YAHOO2 + symbol + '?range=' + range + '&interval=' + interval),
-  ];
   let data;
-  for (const url of targets) {
-    try { const res = await fetch(url); if (!res.ok) continue; data = await res.json(); if (data?.chart?.result?.[0]) break; } catch(e) {}
+  for (const proxy of PROXIES) {
+    for (const base of [YAHOO, YAHOO2]) {
+      if (data?.chart?.result?.[0]) break;
+      try {
+        const res = await fetch(proxy + encodeURIComponent(base + symbol + '?range=' + range + '&interval=' + interval));
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j?.chart?.result?.[0]) { data = j; break; }
+      } catch(e) {}
+    }
+    if (data?.chart?.result?.[0]) break;
   }
   if (!data?.chart?.result?.[0]) throw new Error('No chart data');
   const result = data.chart.result[0];
@@ -1488,7 +1511,7 @@ async function fetchRSS(key) {
   }
   for (const rssUrl of feed.urls) {
     try { const res = await fetch(RSS2JSON + encodeURIComponent(rssUrl)); const d = await res.json(); if (d.status === 'ok' && d.items && d.items.length) { render(d.items); return; } } catch(e) {}
-    try { const res = await fetch(PROXY + encodeURIComponent(rssUrl)); const txt = await res.text(); const xml = new DOMParser().parseFromString(txt, 'text/xml'); const nodes = Array.from(xml.querySelectorAll('item')); if (nodes.length) { render(nodes.map(n => ({ title: n.querySelector('title')?.textContent || '', link: n.querySelector('link')?.textContent || '#', pubDate: n.querySelector('pubDate')?.textContent || '' }))); return; } } catch(e) {}
+    try { const res = await fetch(PROXIES[0] + encodeURIComponent(rssUrl)); const txt = await res.text(); const xml = new DOMParser().parseFromString(txt, 'text/xml'); const nodes = Array.from(xml.querySelectorAll('item')); if (nodes.length) { render(nodes.map(n => ({ title: n.querySelector('title')?.textContent || '', link: n.querySelector('link')?.textContent || '#', pubDate: n.querySelector('pubDate')?.textContent || '' }))); return; } } catch(e) {}
   }
   listEl.innerHTML = '<div class="news-loading">Headlines unavailable — will retry</div>';
   timeEl.textContent = '—';
