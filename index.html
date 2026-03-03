@@ -1277,7 +1277,7 @@ function updateStatus() {
 async function fetchAll() {
   const btn = document.getElementById('refresh-btn');
   if (btn) { btn.textContent = '↻'; btn.classList.add('spinning'); }
-  successCount = 0; totalFetches = 11; updateStatus();
+  successCount = 0; totalFetches = 13; updateStatus();
 
   function ok(id, d, suffix, dec) { setCard(id, d.price, d.change, d.pct, suffix || '', dec || 2); successCount++; updateStatus(); }
   function fail(id) { const el = document.getElementById(id+'-price'); if(el) el.innerHTML = '<span class="error-text">unavailable</span>'; }
@@ -1302,7 +1302,7 @@ async function fetchAll() {
     fetchYahoo('BZ%3DF').then(d=>ok('oil',d)).catch(()=>fetchFinnhub('USO').then(d=>ok('oil',d)).catch(()=>fail('oil'))),
     fetchCrypto('bitcoin').then(d=>ok('btc',d)).catch(()=>fail('btc')),
   ];
-  fetchCrypto('ethereum').then(d=>ok('eth',d)).catch(()=>fail('eth'));
+  fetchCrypto('ethereum').then(d=>{ok('eth',d); successCount++; updateStatus();}).catch(()=>fail('eth'));
 
   document.getElementById('card-cpi').className = 'card neutral';
   document.getElementById('cpi-price').textContent = '2.9%';
@@ -1318,6 +1318,14 @@ async function fetchAll() {
 }
 
 // ── Twitter Ticker ──
+const NITTER_HOSTS = [
+  'https://nitter.privacydev.net',
+  'https://nitter.poast.org',
+  'https://nitter.cz',
+  'https://nitter.nl',
+  'https://lightbrd.com',
+];
+
 async function loadTicker(handle) {
   handle = handle.replace(/^@/, '').trim();
   if (!handle) return;
@@ -1325,15 +1333,39 @@ async function loadTicker(handle) {
   const t = document.getElementById('tkTrack');
   t.style.animation = 'none';
   t.innerHTML = '<span class="tkmsg">Loading @' + handle + '...</span>';
-  const hosts = ['https://rsshub.app/twitter/user/' + handle, 'https://nitter.poast.org/' + handle + '/rss', 'https://rss.nitter.net/' + handle + '/rss'];
+
   let tw = [];
-  for (const u of hosts) {
-    if (tw.length) break;
-    try { const r=await fetch(RSS2JSON+encodeURIComponent(u)+'&count=12'); const d=await r.json(); if(d.status==='ok'&&d.items&&d.items.length){tw=d.items.map(i=>{const el=document.createElement('div');el.innerHTML=i.description||i.title||'';return(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,240);}).filter(x=>x.length>8);} } catch(e){}
-    if (tw.length) break;
-    try { const r=await fetch(PROXIES[0]+encodeURIComponent(u)); const txt=await r.text(); const xml=new DOMParser().parseFromString(txt,'text/xml'); const items=Array.from(xml.querySelectorAll('item')).slice(0,12); if(items.length){tw=items.map(n=>{const el=document.createElement('div');el.innerHTML=n.querySelector('description')?.textContent||n.querySelector('title')?.textContent||'';return(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,240);}).filter(x=>x.length>8);} } catch(e){}
+  for (const host of NITTER_HOSTS) {
+    if (tw.length >= 6) break;
+    const rssUrl = host + '/' + handle + '/rss';
+    try {
+      const r = await fetch(RSS2JSON + encodeURIComponent(rssUrl) + '&count=12');
+      const d = await r.json();
+      if (d.status === 'ok' && d.items && d.items.length > 0) {
+        tw = d.items.map(i => { const el = document.createElement('div'); el.innerHTML = i.description || i.title || ''; return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 240); }).filter(x => x.length > 8);
+        if (tw.length) break;
+      }
+    } catch(e) {}
+    try {
+      for (const proxy of PROXIES) {
+        const r = await fetch(proxy + encodeURIComponent(rssUrl));
+        const txt = await r.text();
+        const xml = new DOMParser().parseFromString(txt, 'text/xml');
+        const items = Array.from(xml.querySelectorAll('item')).slice(0, 12);
+        if (items.length > 0) {
+          tw = items.map(n => { const el = document.createElement('div'); el.innerHTML = n.querySelector('description')?.textContent || n.querySelector('title')?.textContent || ''; return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 240); }).filter(x => x.length > 8);
+          if (tw.length) break;
+        }
+      }
+      if (tw.length) break;
+    } catch(e) {}
   }
-  if (!tw.length) { t.innerHTML = '<span class="tkmsg">@' + handle + ' feed unavailable — try another</span>'; t.style.animation = 'none'; return; }
+
+  if (!tw.length) {
+    t.innerHTML = '<span class="tkmsg">@' + handle + ' feed unavailable — Nitter RSS bridges are rate-limited. Try: federalreserve · LynAldenContact · MacroAlf · elerianm</span><span class="tksep">◆</span><span class="tkmsg">@' + handle + ' feed unavailable — Nitter RSS bridges are rate-limited. Try: federalreserve · LynAldenContact · MacroAlf · elerianm</span>';
+    t.style.animation = 'tkS 40s linear infinite';
+    return;
+  }
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const chunk = tw.map(x => '<span class="tktw">' + esc(x) + '</span><span class="tksep">◆</span>').join('');
   t.innerHTML = chunk + chunk;
@@ -1508,6 +1540,7 @@ async function fetchRSS(key) {
       listEl.appendChild(a); count++;
     }
     timeEl.textContent = 'Updated ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    setSentiment(key, items.map(i => i.title || '').filter(Boolean));
   }
   for (const rssUrl of feed.urls) {
     try { const res = await fetch(RSS2JSON + encodeURIComponent(rssUrl)); const d = await res.json(); if (d.status === 'ok' && d.items && d.items.length) { render(d.items); return; } } catch(e) {}
@@ -1515,6 +1548,56 @@ async function fetchRSS(key) {
   }
   listEl.innerHTML = '<div class="news-loading">Headlines unavailable — will retry</div>';
   timeEl.textContent = '—';
+}
+
+
+// ── Sentiment Analysis ──
+const BULLISH_WORDS = ['surge','rally','soar','gain','rise','jump','climb','record','high','bull','boom','growth','strong','profit','beat','exceed','upgrade','positive','optimism','recovery','rebound'];
+const BEARISH_WORDS = ['crash','fall','drop','plunge','decline','loss','slump','bear','recession','weak','miss','downgrade','fear','risk','concern','warning','cut','layoff','tariff','inflation','deficit','debt'];
+
+function analyzeSentiment(headlines) {
+  let score = 0;
+  for (const h of headlines) {
+    const lower = h.toLowerCase();
+    for (const w of BULLISH_WORDS) if (lower.includes(w)) score++;
+    for (const w of BEARISH_WORDS) if (lower.includes(w)) score--;
+  }
+  const n = headlines.length || 1;
+  const norm = Math.max(-1, Math.min(1, score / n)); // -1 to +1
+  return norm;
+}
+
+function setSentiment(key, headlines) {
+  const score = analyzeSentiment(headlines);
+  const tagEl = document.getElementById(key + '-sentiment-tag');
+  const scoreEl = document.getElementById(key + '-sentiment-score');
+  const fillEl = document.getElementById(key + '-sentiment-fill');
+  if (!tagEl || !fillEl) return;
+
+  const pct = Math.abs(score) * 48; // max 48% from center
+  const isBull = score >= 0.1;
+  const isBear = score <= -0.1;
+
+  if (isBull) {
+    tagEl.textContent = '▲ Bullish';
+    tagEl.style.color = 'var(--green)';
+    fillEl.style.background = 'var(--green)';
+    fillEl.style.left = '50%';
+    fillEl.style.width = pct + '%';
+  } else if (isBear) {
+    tagEl.textContent = '▼ Bearish';
+    tagEl.style.color = 'var(--red)';
+    fillEl.style.background = 'var(--red)';
+    fillEl.style.left = (50 - pct) + '%';
+    fillEl.style.width = pct + '%';
+  } else {
+    tagEl.textContent = '● Neutral';
+    tagEl.style.color = 'var(--muted)';
+    fillEl.style.background = 'var(--muted)';
+    fillEl.style.left = '48%';
+    fillEl.style.width = '4%';
+  }
+  scoreEl.textContent = (score >= 0 ? '+' : '') + (score * 100).toFixed(0) + ' sentiment';
 }
 
 function loadAllNews() { fetchRSS('nyt'); fetchRSS('mw'); fetchRSS('bbg'); }
