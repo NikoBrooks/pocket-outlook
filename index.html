@@ -98,14 +98,8 @@
   }
 
   .refresh-btn.spinning {
-    animation: spin 1s linear infinite;
     color: var(--accent);
     border-color: var(--accent);
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
   }
 
   .last-updated {
@@ -1090,8 +1084,6 @@
     <span class="divider">|</span>
     <span>Auto-refreshes every 60 seconds</span>
     <span class="divider">|</span>
-    <span>CPI is static (monthly BLS release) — <span style="color:var(--text)">2.9% as of Jan 2025</span></span>
-    <span class="divider">|</span>
     <span id="fetch-status">Initializing...</span>
   </div>
 
@@ -1276,7 +1268,12 @@ function updateStatus() {
 
 async function fetchAll() {
   const btn = document.getElementById('refresh-btn');
-  if (btn) { btn.textContent = '↻'; btn.classList.add('spinning'); }
+  if (btn) {
+    btn.classList.add('spinning');
+    const frames = ['◐','◓','◑','◒'];
+    let fi = 0;
+    btn._spinner = setInterval(() => { btn.textContent = frames[fi++ % 4]; }, 150);
+  }
   successCount = 0; totalFetches = 13; updateStatus();
 
   function ok(id, d, suffix, dec) { setCard(id, d.price, d.change, d.pct, suffix || '', dec || 2); successCount++; updateStatus(); }
@@ -1314,7 +1311,7 @@ async function fetchAll() {
   const now = new Date();
   const el = document.getElementById('last-updated');
   if (el) el.textContent = 'Updated ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  if (btn) { btn.textContent = '↻ Refresh'; btn.classList.remove('spinning'); }
+  if (btn) { clearInterval(btn._spinner); btn.textContent = '↻ Refresh'; btn.classList.remove('spinning'); }
 }
 
 // ── Twitter Ticker ──
