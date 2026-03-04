@@ -1418,7 +1418,7 @@ function setGreeting() {
   else if (hour >= 12 && hour < 17) pool = a;
   else if (hour >= 17 && hour < 21) pool = e;
   else pool = n;
-  const el = document.getElementById('greeting');
+  const el = document.getElementById('greeting-text');
   if (el) el.textContent = pool[Math.floor(Math.random() * pool.length)];
 }
 
