@@ -1660,23 +1660,63 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
     afterDraw(chart) {
       const ctx2 = chart.ctx;
       const area = chart.chartArea;
+      const dataset = chart.data.datasets[0];
+      const meta = chart.getDatasetMeta(0);
+      const pts = meta.data;
+      if (!pts || pts.length === 0) return;
       ctx2.save();
-      // Drag selection region
+
+      // Helper: get interpolated Y on the chart line at a given pixel X
+      function getLineY(px) {
+        // Find the two surrounding data points
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i], p1 = pts[i + 1];
+          if (px >= p0.x && px <= p1.x) {
+            const t = (px - p0.x) / (p1.x - p0.x);
+            return p0.y + t * (p1.y - p0.y);
+          }
+        }
+        // Outside range — clamp to first/last
+        if (px <= pts[0].x) return pts[0].y;
+        return pts[pts.length - 1].y;
+      }
+
+      // Drag selection region — clipped to the chart line
       if (chart._dragStart != null && chart._dragEnd != null) {
         const x1 = Math.min(chart._dragStart, chart._dragEnd);
         const x2 = Math.max(chart._dragStart, chart._dragEnd);
-        ctx2.fillStyle = 'rgba(255,255,255,0.05)';
-        ctx2.fillRect(x1, area.top, x2 - x1, area.bottom - area.top);
-        // Left and right edge lines only
-        ctx2.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx2.lineWidth = 1;
-        ctx2.setLineDash([]);
-        ctx2.beginPath(); ctx2.moveTo(x1, area.top); ctx2.lineTo(x1, area.bottom); ctx2.stroke();
-        ctx2.beginPath(); ctx2.moveTo(x2, area.top); ctx2.lineTo(x2, area.bottom); ctx2.stroke();
+        if (x2 - x1 > 2) {
+          // Build a clipping path that follows the chart line from x1 to x2
+          ctx2.beginPath();
+          // Start at bottom-left
+          ctx2.moveTo(x1, area.bottom);
+          // Walk up to the line at x1
+          ctx2.lineTo(x1, getLineY(x1));
+          // Trace the chart line across the selected range
+          for (let i = 0; i < pts.length; i++) {
+            if (pts[i].x >= x1 && pts[i].x <= x2) {
+              ctx2.lineTo(pts[i].x, pts[i].y);
+            }
+          }
+          // Down to bottom-right
+          ctx2.lineTo(x2, getLineY(x2));
+          ctx2.lineTo(x2, area.bottom);
+          ctx2.closePath();
+          ctx2.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx2.fill();
+
+          // Edge lines
+          ctx2.setLineDash([]);
+          ctx2.lineWidth = 1;
+          ctx2.strokeStyle = 'rgba(255,255,255,0.3)';
+          ctx2.beginPath(); ctx2.moveTo(x1, getLineY(x1)); ctx2.lineTo(x1, area.bottom); ctx2.stroke();
+          ctx2.beginPath(); ctx2.moveTo(x2, getLineY(x2)); ctx2.lineTo(x2, area.bottom); ctx2.stroke();
+        }
       }
+
       // Crosshair line
       if (chart._hoverX != null) {
-        ctx2.strokeStyle = 'rgba(200,200,220,0.2)';
+        ctx2.strokeStyle = 'rgba(200,200,220,0.18)';
         ctx2.lineWidth = 1;
         ctx2.setLineDash([3, 4]);
         ctx2.beginPath();
@@ -1684,6 +1724,7 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
         ctx2.lineTo(chart._hoverX, area.bottom);
         ctx2.stroke();
       }
+
       ctx2.restore();
     }
   };
