@@ -1403,6 +1403,7 @@ async function fetchChartData(symbol, range, interval) {
   }
   if (!data?.chart?.result?.[0]) throw new Error('No chart data');
   const result = data.chart.result[0];
+  const meta = result.meta;
   const timestamps = result.timestamp;
   const closes = result.indicators.quote[0].close;
   const points = [];
@@ -1416,7 +1417,10 @@ async function fetchChartData(symbol, range, interval) {
       points.push({ x: label, y: closes[i] });
     }
   }
-  return points;
+  // For 1D, use metadata prices so badge matches card exactly
+  const livePrice = (interval === '5m' || interval === '30m') ? meta.regularMarketPrice : null;
+  const prevClose = (interval === '5m' || interval === '30m') ? (meta.previousClose || meta.chartPreviousClose) : null;
+  return { points, livePrice, prevClose };
 }
 
 function setPctBadge(chartNum, pct) {
@@ -1455,13 +1459,16 @@ function attachDragMeasure(canvasId, chartNum) {
   canvas.addEventListener('mouseleave', () => { isDragging = false; setTimeout(() => dragEl.classList.remove('visible'), 1800); });
 }
 
-function renderChart(canvasId, points, label) {
+function renderChart(canvasId, points, label, livePrice, prevClose) {
   const chartNum = canvasId.replace('chart', '');
   const ctx = document.getElementById(canvasId).getContext('2d');
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
   chartRawPoints[canvasId] = points;
   const first = points[0].y, last = points[points.length - 1].y;
-  const totalPct = ((last - first) / first) * 100;
+  // Use live metadata prices for badge if available (1D), else use chart points
+  const badgeFirst = prevClose || first;
+  const badgeLast = livePrice || last;
+  const totalPct = ((badgeLast - badgeFirst) / badgeFirst) * 100;
   const isUp = last >= first;
   const lineColor = isUp ? '#00d97e' : '#ff4d6a';
   const fillColor = isUp ? 'rgba(0,217,126,0.07)' : 'rgba(255,77,106,0.07)';
@@ -1492,10 +1499,11 @@ async function loadChart(chartNum, range, interval) {
   const loadingEl = document.getElementById(canvasId + '-loading');
   loadingEl.classList.remove('hidden'); loadingEl.textContent = 'Loading chart...';
   try {
-    const points = await fetchChartData(state.symbol, range, interval);
+    const result = await fetchChartData(state.symbol, range, interval);
+    const points = result.points;
     if (points.length === 0) throw new Error('No data');
     loadingEl.classList.add('hidden');
-    renderChart(canvasId, points, state.label);
+    renderChart(canvasId, points, state.label, result.livePrice, result.prevClose);
   } catch(e) { loadingEl.textContent = 'Chart unavailable'; }
 }
 
