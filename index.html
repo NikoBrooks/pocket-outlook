@@ -1883,96 +1883,96 @@ function loadAllNews() { fetchRSS('nyt'); fetchRSS('mw'); fetchRSS('bbg'); }
 
 // ── Financial Dictionary ──
 const DEFINITIONS = {
-  'S&P 500': {
-    title: 'S&P 500',
-    body: 'The Standard & Poor\'s 500 — a stock market index tracking the 500 largest publicly traded U.S. companies by market cap. Widely considered the best single gauge of large-cap U.S. equities and a proxy for the overall market.',
+  "S&P 500": {
+    title: "S&P 500",
+    body: "The Standard & Poor's 500 — a stock market index tracking the 500 largest publicly traded U.S. companies by market cap. Widely considered the best single gauge of large-cap U.S. equities and a proxy for the overall market.",
     formula: null,
-    tip: 'Buffett famously recommends most investors simply buy a low-cost S&P 500 index fund and hold it forever.'
+    tip: "Buffett famously recommends most investors simply buy a low-cost S&P 500 index fund and hold it forever."
   },
-  'NASDAQ': {
-    title: 'NASDAQ Composite',
-    body: 'An index of over 3,000 stocks listed on the NASDAQ exchange, heavily weighted toward technology and growth companies. More volatile than the S&P 500 due to its tech concentration.',
+  "NASDAQ": {
+    title: "NASDAQ Composite",
+    body: "An index of over 3,000 stocks listed on the NASDAQ exchange, heavily weighted toward technology and growth companies. More volatile than the S&P 500 due to its tech concentration.",
     formula: null,
-    tip: 'When the NASDAQ significantly diverges from the S&P 500, it often signals a rotation between growth and value stocks.'
+    tip: "When the NASDAQ significantly diverges from the S&P 500, it often signals a rotation between growth and value stocks."
   },
-  'Dow Jones': {
-    title: 'Dow Jones Industrial Average',
-    body: 'One of the oldest stock indices — tracks 30 large, blue-chip U.S. companies. Price-weighted (higher-priced stocks have more influence), which makes it less representative than market-cap-weighted indices like the S&P 500.',
+  "Dow Jones": {
+    title: "Dow Jones Industrial Average",
+    body: "One of the oldest stock indices — tracks 30 large, blue-chip U.S. companies. Price-weighted (higher-priced stocks have more influence), which makes it less representative than market-cap-weighted indices like the S&P 500.",
     formula: null,
-    tip: 'Value investors often pay less attention to the Dow than the S&P 500 due to its small sample size and price-weighting methodology.'
+    tip: "Value investors often pay less attention to the Dow than the S&P 500 due to its small sample size and price-weighting methodology."
   },
-  'VIX': {
-    title: 'VIX — CBOE Volatility Index',
-    body: 'Measures the market\'s expectation of 30-day volatility, derived from S&P 500 options prices. Often called the "Fear Index." Spikes during market stress and falls during calm periods.',
-    formula: 'Derived from weighted S&P 500 option prices across strikes',
-    tip: 'Warren Buffett\'s paraphrase: "Be greedy when others are fearful." A high VIX often marks buying opportunities for long-term value investors.'
+  "VIX": {
+    title: "VIX — CBOE Volatility Index",
+    body: "Measures the market's expectation of 30-day volatility, derived from S&P 500 options prices. Often called the Fear Index. Spikes during market stress and falls during calm periods.",
+    formula: "Derived from weighted S&P 500 option prices across strikes",
+    tip: "Warren Buffett's paraphrase: Be greedy when others are fearful. A high VIX often marks buying opportunities for long-term value investors."
   },
-  '3-Mo T-Bill': {
-    title: '3-Month Treasury Bill',
-    body: 'Short-term U.S. government debt maturing in 90 days. Considered the closest thing to a risk-free rate of return. Used as the baseline in many valuation models including the Capital Asset Pricing Model (CAPM).',
-    formula: 'Risk-Free Rate — the floor below which no rational investor should accept returns',
-    tip: 'When T-Bill yields are high, the hurdle rate for stocks rises. A stock must offer returns meaningfully above the T-Bill rate to justify the added risk.'
+  "3-Mo T-Bill": {
+    title: "3-Month Treasury Bill",
+    body: "Short-term U.S. government debt maturing in 90 days. Considered the closest thing to a risk-free rate of return. Used as the baseline in many valuation models including CAPM.",
+    formula: "Risk-Free Rate — the floor below which no rational investor should accept returns",
+    tip: "When T-Bill yields are high, the hurdle rate for stocks rises. A stock must offer returns meaningfully above the T-Bill rate to justify the added risk."
   },
-  '10-Yr Treasury': {
-    title: '10-Year Treasury Yield',
-    body: 'The annualized return on U.S. government bonds maturing in 10 years. The most watched interest rate in the world — influences mortgage rates, corporate borrowing costs, and stock valuations.',
-    formula: 'Often used as the discount rate in DCF models',
-    tip: 'Rising 10-year yields compress equity valuations, especially for growth stocks with earnings far in the future. Value stocks tend to be more resilient.'
+  "10-Yr Treasury": {
+    title: "10-Year Treasury Yield",
+    body: "The annualized return on U.S. government bonds maturing in 10 years. The most watched interest rate in the world — influences mortgage rates, corporate borrowing costs, and stock valuations.",
+    formula: "Often used as the discount rate in DCF valuation models",
+    tip: "Rising 10-year yields compress equity valuations, especially for growth stocks with earnings far in the future. Value stocks tend to be more resilient."
   },
-  '30-Yr Treasury': {
-    title: '30-Year Treasury Yield',
-    body: 'The yield on 30-year U.S. government bonds. Reflects long-term inflation expectations and growth outlook. A key benchmark for mortgage rates and long-duration asset pricing.',
+  "30-Yr Treasury": {
+    title: "30-Year Treasury Yield",
+    body: "The yield on 30-year U.S. government bonds. Reflects long-term inflation expectations and growth outlook. A key benchmark for mortgage rates and long-duration asset pricing.",
     formula: null,
-    tip: 'The spread between 30-year and 2-year yields (yield curve) is a classic recession predictor — inversion has preceded every U.S. recession since 1955.'
+    tip: "The spread between 30-year and 2-year yields is a classic recession predictor — inversion has preceded every U.S. recession since 1955."
   },
-  'USD Index': {
-    title: 'U.S. Dollar Index (DXY)',
-    body: 'Measures the value of the U.S. dollar against a basket of six major currencies (EUR, JPY, GBP, CAD, SEK, CHF). A rising DXY generally pressures commodities, emerging markets, and multinational earnings.',
-    formula: 'Geometric weighted average: EUR (57.6%), JPY (13.6%), GBP (11.9%), others',
-    tip: 'For value investors with international exposure, a strong dollar erodes the USD value of foreign earnings — worth factoring into cross-border valuations.'
+  "USD Index": {
+    title: "U.S. Dollar Index (DXY)",
+    body: "Measures the value of the U.S. dollar against a basket of six major currencies (EUR, JPY, GBP, CAD, SEK, CHF). A rising DXY generally pressures commodities, emerging markets, and multinational earnings.",
+    formula: "Geometric weighted average: EUR 57.6%, JPY 13.6%, GBP 11.9%, others",
+    tip: "For value investors with international exposure, a strong dollar erodes the USD value of foreign earnings — worth factoring into cross-border valuations."
   },
-  'CPI': {
-    title: 'Consumer Price Index (CPI)',
-    body: 'Measures the average change in prices paid by consumers for goods and services. The primary gauge of inflation in the U.S., published monthly by the Bureau of Labor Statistics.',
-    formula: 'CPI = (Cost of basket in current period / Cost of basket in base period) × 100',
-    tip: 'High inflation erodes the real value of fixed cash flows. Value investors prefer businesses with pricing power — the ability to raise prices without losing customers.'
+  "CPI": {
+    title: "Consumer Price Index (CPI)",
+    body: "Measures the average change in prices paid by consumers for goods and services. The primary gauge of inflation in the U.S., published monthly by the Bureau of Labor Statistics.",
+    formula: "CPI = (Cost of basket in current period / Cost of basket in base period) x 100",
+    tip: "High inflation erodes the real value of fixed cash flows. Value investors prefer businesses with pricing power — the ability to raise prices without losing customers."
   },
-  'Fed Funds Rate': {
-    title: 'Federal Funds Rate',
-    body: 'The interest rate at which banks lend reserve balances to other banks overnight. Set by the Federal Reserve\'s FOMC. The most influential interest rate in the world — it cascades through all other borrowing costs.',
+  "Fed Funds Rate": {
+    title: "Federal Funds Rate",
+    body: "The interest rate at which banks lend reserve balances to other banks overnight. Set by the Federal Reserve FOMC. The most influential interest rate in the world — it cascades through all other borrowing costs.",
     formula: null,
-    tip: 'Low rates make stocks relatively more attractive (TINA — "There Is No Alternative"). High rates raise the discount rate, compressing valuations across all asset classes.'
+    tip: "Low rates make stocks relatively more attractive (TINA — There Is No Alternative). High rates raise the discount rate, compressing valuations across all asset classes."
   },
-  'FOMC': {
-    title: 'Federal Open Market Committee (FOMC)',
-    body: 'The 12-member committee within the Federal Reserve that sets U.S. monetary policy. Meets 8 times per year to decide whether to raise, lower, or hold the Federal Funds Rate.',
+  "FOMC": {
+    title: "Federal Open Market Committee",
+    body: "The 12-member committee within the Federal Reserve that sets U.S. monetary policy. Meets 8 times per year to decide whether to raise, lower, or hold the Federal Funds Rate.",
     formula: null,
-    tip: 'FOMC meeting dates are key calendar events — markets often move significantly on rate decisions and the language in the Fed\'s statement (the "dot plot").'
+    tip: "FOMC meeting dates are key calendar events — markets often move significantly on rate decisions and the language in the Fed statement (the dot plot)."
   },
-  'Gold Futures': {
-    title: 'Gold Futures',
-    body: 'Contracts to buy or sell gold at a predetermined price at a future date. Used by investors as a hedge against inflation, currency debasement, and systemic risk. Gold has no yield but historically preserves purchasing power.',
+  "Gold Futures": {
+    title: "Gold Futures",
+    body: "Contracts to buy or sell gold at a predetermined price at a future date. Used by investors as a hedge against inflation, currency debasement, and systemic risk. Gold has no yield but historically preserves purchasing power.",
     formula: null,
-    tip: 'Buffett famously avoids gold ("it just sits there"). But many value investors like Lyn Alden hold it as macro insurance against currency debasement scenarios.'
+    tip: "Buffett famously avoids gold. But many value investors like Lyn Alden hold it as macro insurance against currency debasement scenarios."
   },
-  'Brent Crude': {
-    title: 'Brent Crude Oil',
-    body: 'The international benchmark for oil prices, sourced from the North Sea. Used to price roughly two-thirds of global oil supplies. A key input into inflation, transportation costs, and energy sector valuations.',
+  "Brent Crude": {
+    title: "Brent Crude Oil",
+    body: "The international benchmark for oil prices, sourced from the North Sea. Used to price roughly two-thirds of global oil supplies. A key input into inflation, transportation costs, and energy sector valuations.",
     formula: null,
-    tip: 'Oil prices significantly impact CPI. Energy companies are classic value territory — cyclical, capital-intensive, often trading below intrinsic value at cycle lows.'
+    tip: "Energy companies are classic value territory — cyclical, capital-intensive, often trading below intrinsic value at cycle lows."
   },
-  'Bitcoin': {
-    title: 'Bitcoin (BTC)',
-    body: 'The first and largest cryptocurrency by market cap. A decentralized digital asset with a fixed supply of 21 million coins. Increasingly held by institutions as "digital gold" — a store of value outside the traditional financial system.',
+  "Bitcoin": {
+    title: "Bitcoin (BTC)",
+    body: "The first and largest cryptocurrency by market cap. A decentralized digital asset with a fixed supply of 21 million coins. Increasingly held by institutions as digital gold — a store of value outside the traditional financial system.",
     formula: null,
-    tip: 'Traditional value investors are divided on Bitcoin. Some (like Lyn Alden) see it as legitimate macro insurance. Others (like Buffett and Munger) view it as purely speculative.'
+    tip: "Traditional value investors are divided on Bitcoin. Some like Lyn Alden see it as legitimate macro insurance. Others like Buffett and Munger view it as purely speculative."
   },
-  'Ethereum': {
-    title: 'Ethereum (ETH)',
-    body: 'The second-largest cryptocurrency — a programmable blockchain platform that enables smart contracts and decentralized applications (dApps). ETH is used to pay for computation on the network ("gas fees").',
+  "Ethereum": {
+    title: "Ethereum (ETH)",
+    body: "The second-largest cryptocurrency — a programmable blockchain platform that enables smart contracts and decentralized applications. ETH is used to pay for computation on the network (gas fees).",
     formula: null,
-    tip: 'Unlike Bitcoin\'s fixed supply, Ethereum\'s issuance model has shifted post-merge. It can be analyzed more like a tech platform — price-to-revenue ratios and fee revenue are emerging as valuation metrics.'
-  },
+    tip: "Unlike Bitcoin's fixed supply, Ethereum's issuance model has shifted post-merge. It can be analyzed more like a tech platform — fee revenue and protocol metrics are emerging as valuation tools."
+  }
 };
 
 // Normalize card labels to dictionary keys
@@ -2055,30 +2055,66 @@ function renderDictionary() {
   dictRendered = true;
   const list = document.getElementById('dictList');
   list.innerHTML = '';
-  Object.keys(DEFINITIONS).forEach(key => {
+  Object.keys(DEFINITIONS).forEach(function(key) {
     const def = DEFINITIONS[key];
     const loc = TERM_LOCATIONS[key] || {};
-    const tagParts = [];
-    if (loc.card) tagParts.push(loc.card);
-    if (loc.chart) tagParts.push(loc.chart);
     const item = document.createElement('div');
     item.className = 'dict-item';
     item.dataset.key = key;
     item.dataset.search = (def.title + ' ' + def.body).toLowerCase();
-    item.innerHTML =
-      '<div class="dict-item-header">' +
-        '<span class="dict-item-term">' + def.title + '</span>' +
-        (loc.card ? '<span class="dict-item-tag">' + loc.card + '</span>' : '') +
-      '</div>' +
-      '<div class="dict-item-body">' + def.body + '</div>' +
-      (def.formula ? '<div class="dict-item-formula">' + def.formula + '</div>' : '') +
-      (loc.chart ? '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:6px;letter-spacing:0.05em;">📊 ' + loc.chart + '</div>' : '') +
-      (def.tip ? '<div class="dict-item-expand">▸ Value Investor's Take</div><div class="dict-item-tip"><span class="dict-item-tip-label">Value Investor's Take</span>' + def.tip + '</div>' : '');
-    item.addEventListener('click', () => item.classList.toggle('expanded'));
+
+    const header = document.createElement('div');
+    header.className = 'dict-item-header';
+    const term = document.createElement('span');
+    term.className = 'dict-item-term';
+    term.textContent = def.title;
+    header.appendChild(term);
+    if (loc.card) {
+      const tag = document.createElement('span');
+      tag.className = 'dict-item-tag';
+      tag.textContent = loc.card;
+      header.appendChild(tag);
+    }
+    item.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'dict-item-body';
+    body.textContent = def.body;
+    item.appendChild(body);
+
+    if (def.formula) {
+      const form = document.createElement('div');
+      form.className = 'dict-item-formula';
+      form.textContent = def.formula;
+      item.appendChild(form);
+    }
+
+    if (loc.chart) {
+      const chartLoc = document.createElement('div');
+      chartLoc.className = 'dict-item-chartloc';
+      chartLoc.textContent = '\u{1F4CA} ' + loc.chart;
+      item.appendChild(chartLoc);
+    }
+
+    if (def.tip) {
+      const expandBtn = document.createElement('div');
+      expandBtn.className = 'dict-item-expand';
+      expandBtn.textContent = '\u25B8 Value Investor Take';
+      item.appendChild(expandBtn);
+      const tipEl = document.createElement('div');
+      tipEl.className = 'dict-item-tip';
+      const tipLabel = document.createElement('span');
+      tipLabel.className = 'dict-item-tip-label';
+      tipLabel.textContent = 'Value Investor Take';
+      tipEl.appendChild(tipLabel);
+      tipEl.appendChild(document.createTextNode(def.tip));
+      item.appendChild(tipEl);
+    }
+
+    item.addEventListener('click', function() { item.classList.toggle('expanded'); });
     list.appendChild(item);
   });
 }
-
 function filterDictionary(query) {
   renderDictionary();
   const q = query.toLowerCase().trim();
