@@ -788,7 +788,7 @@
     transform: translateY(-1px);
     box-shadow: 0 6px 24px rgba(0,0,0,0.6);
   }
-  .dict-fab-icon { font-size: 13px; }
+  .dict-fab-svg { flex-shrink: 0; color: var(--green); }
   .dict-fab-label { font-size: 10px; letter-spacing: 0.15em; }
 
   .dict-overlay {
@@ -1542,19 +1542,18 @@ const TICKER_FEEDS = {
   'federalreserve': 'https://www.federalreserve.gov/feeds/press_all.xml',
   'LynAldenContact': 'https://www.lynalden.com/feed/',
   'MacroAlf':        'https://themacrocompass.substack.com/feed',
-  'elerianm':        'https://feeds.bloomberg.com/markets/news.rss',
-  'NickTimiraos':    'https://feeds.content.dowjones.io/public/rss/mw_topstories',
-  'GundlachCapital': 'https://feeds.bloomberg.com/markets/news.rss',
+  'elerianm':        'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
+  'NickTimiraos':    'https://www.marketwatch.com/rss/topstories',
+  'GundlachCapital': 'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
   'zerohedge':       'https://feeds.feedburner.com/zerohedge/feed',
-  'wsj':             'https://feeds.content.dowjones.io/public/rss/mw_topstories',
-  'ft':              'https://www.ft.com/rss/home',
+  'wsj':             'https://www.marketwatch.com/rss/topstories',
+  'ft':              'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
 };
 
-// Fallback feeds tried in order if handle has no mapping
 const FALLBACK_FEEDS = [
-  'https://feeds.bloomberg.com/markets/news.rss',
-  'https://www.marketwatch.com/rss/topstories',
   'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
+  'https://www.marketwatch.com/rss/topstories',
+  'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
 ];
 
 async function loadTicker(handle) {
@@ -2092,7 +2091,7 @@ function renderDictionary() {
     if (loc.chart) {
       const chartLoc = document.createElement('div');
       chartLoc.className = 'dict-item-chartloc';
-      chartLoc.textContent = '\u{1F4CA} ' + loc.chart;
+      chartLoc.textContent = '■ ' + loc.chart;
       item.appendChild(chartLoc);
     }
 
@@ -2179,14 +2178,17 @@ setInterval(loadAllNews, 600000);
 
 <!-- ── Dictionary Panel ── -->
 <button class="dict-fab" id="dictFab" onclick="toggleDictionary()">
-  <span class="dict-fab-icon">📖</span>
+  <svg class="dict-fab-svg" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <polyline points="1,11 4,7 6,9 9,4 13,6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="1" y1="13" x2="13" y2="13" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+  </svg>
   <span class="dict-fab-label">Dictionary</span>
 </button>
 
 <div class="dict-panel" id="dictPanel">
   <div class="dict-panel-header">
     <div class="dict-panel-title">
-      <span class="dict-panel-icon">◈</span>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><polyline points="1,9 3,6 5,7.5 8,3 11,5" stroke="#00d97e" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="1" y1="11" x2="11" y2="11" stroke="#2a2a30" stroke-width="1"/></svg>
       Financial Dictionary
     </div>
     <button class="dict-panel-close" onclick="toggleDictionary()">✕</button>
