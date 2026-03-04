@@ -407,6 +407,9 @@
   .range-tab.active {
     color: var(--text);
     font-weight: 600;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border-bright);
+    border-radius: 3px;
   }
 
   .chart-wrap {
@@ -1730,6 +1733,30 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   const ctx = document.getElementById(canvasId).getContext('2d');
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
   chartRawPoints[canvasId] = points;
+  // Attach drag-to-highlight events
+  const canvas = document.getElementById(canvasId);
+  canvas.addEventListener('mousedown', e => {
+    const chart = chartInstances[canvasId];
+    if (!chart) return;
+    chart._dragStart = e.offsetX;
+    chart._dragEnd = null;
+    chart._dragging = true;
+  });
+  canvas.addEventListener('mousemove', e => {
+    const chart = chartInstances[canvasId];
+    if (!chart) return;
+    chart._hoverX = e.offsetX;
+    if (chart._dragging) chart._dragEnd = e.offsetX;
+    chart.draw();
+  });
+  canvas.addEventListener('mouseup', () => {
+    const chart = chartInstances[canvasId];
+    if (chart) chart._dragging = false;
+  });
+  canvas.addEventListener('mouseleave', () => {
+    const chart = chartInstances[canvasId];
+    if (chart) { chart._hoverX = null; chart._dragStart = null; chart._dragEnd = null; chart.draw(); }
+  });
   const first = points[0].y, last = points[points.length - 1].y;
   // Use live metadata prices for badge if available (1D), else use chart points
   const badgeFirst = prevClose || first;
@@ -1741,9 +1768,44 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   const step = Math.max(1, Math.floor(points.length / 80));
   const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
   setPctBadge(chartNum, totalPct);
+  // Custom crosshair + drag-highlight plugin
+  const crosshairPlugin = {
+    id: 'crosshair_' + canvasId,
+    afterDraw(chart) {
+      const ctx2 = chart.ctx;
+      const area = chart.chartArea;
+      ctx2.save();
+      // Drag highlight region
+      if (chart._dragStart != null && chart._dragEnd != null) {
+        const x1 = Math.min(chart._dragStart, chart._dragEnd);
+        const x2 = Math.max(chart._dragStart, chart._dragEnd);
+        ctx2.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx2.fillRect(x1, area.top, x2 - x1, area.bottom - area.top);
+        ctx2.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx2.lineWidth = 1;
+        ctx2.strokeRect(x1, area.top, x2 - x1, area.bottom - area.top);
+      }
+      // Crosshair vertical line
+      if (chart._hoverX != null) {
+        ctx2.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx2.lineWidth = 1;
+        ctx2.setLineDash([3, 3]);
+        ctx2.beginPath();
+        ctx2.moveTo(chart._hoverX, area.top);
+        ctx2.lineTo(chart._hoverX, area.bottom);
+        ctx2.stroke();
+      }
+      ctx2.restore();
+    }
+  };
+
   chartInstances[canvasId] = new Chart(ctx, {
     type: 'line',
-    data: { labels: sampled.map(p => p.x), datasets: [{ data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor }] },
+    plugins: [crosshairPlugin],
+    data: { labels: sampled.map(p => p.x), datasets: [
+      { data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor },
+      { data: sampled.map(() => first), borderColor: 'rgba(107,107,122,0.35)', borderWidth: 1, borderDash: [4,4], fill: false, pointRadius: 0, pointHoverRadius: 0, tension: 0 }
+    ] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
       plugins: {
@@ -1780,9 +1842,21 @@ function loadAllCharts(range, interval) {
 
 // ── News ──
 const RSS_FEEDS = {
-  nyt: { urls: ['https://rss.nytimes.com/services/xml/rss/nyt/Business.xml'], elId: 'news-nyt', timeId: 'nyt-time' },
-  mw:  { urls: ['https://www.marketwatch.com/rss/topstories'], elId: 'news-mw', timeId: 'mw-time' },
-  bbg: { urls: ['https://feeds.bloomberg.com/markets/news.rss'], elId: 'news-bbg', timeId: 'bbg-time' }
+  nyt: { urls: [
+    'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
+    'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
+    'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml',
+  ], elId: 'news-nyt', timeId: 'nyt-time' },
+  mw: { urls: [
+    'https://www.marketwatch.com/rss/topstories',
+    'https://www.marketwatch.com/rss/marketpulse',
+    'https://feeds.content.dowjones.io/public/rss/mw_topstories',
+  ], elId: 'news-mw', timeId: 'mw-time' },
+  bbg: { urls: [
+    'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
+    'https://feeds.feedburner.com/zerohedge/feed',
+    'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
+  ], elId: 'news-bbg', timeId: 'bbg-time' }
 };
 
 function timeAgo(dateStr) {
@@ -1803,26 +1877,84 @@ async function fetchRSS(key) {
   const feed = RSS_FEEDS[key];
   const listEl = document.getElementById(feed.elId);
   const timeEl = document.getElementById(feed.timeId);
+
   function dec(s) { const t = document.createElement('textarea'); t.innerHTML = s; return t.value; }
+
+  function parseXML(txt) {
+    const xml = new DOMParser().parseFromString(txt, 'text/xml');
+    const nodes = Array.from(xml.querySelectorAll('item'));
+    if (!nodes.length) throw new Error('no items');
+    return nodes.map(n => {
+      const raw = n.querySelector('link');
+      const link = raw ? (raw.textContent || raw.nextSibling?.nodeValue || '#') : '#';
+      return {
+        title: n.querySelector('title')?.textContent || '',
+        link: link.trim() || '#',
+        pubDate: n.querySelector('pubDate')?.textContent || ''
+      };
+    });
+  }
+
   function render(items) {
     if (!items || !items.length) throw new Error('empty');
-    listEl.innerHTML = ''; let count = 0;
+    listEl.innerHTML = '';
+    let count = 0;
     for (const item of items) {
       if (count >= 6) break;
       const title = dec((item.title || '').trim());
       if (!title || title.length < 8) continue;
       const a = document.createElement('a');
-      a.className = 'news-item'; a.href = item.link || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer';
-      a.innerHTML = '<div class="news-headline">' + title + '</div><div class="news-meta">' + timeAgo(item.pubDate || item.published || '') + '</div>';
-      listEl.appendChild(a); count++;
+      a.className = 'news-item';
+      a.href = item.link || '#';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      const headline = document.createElement('div');
+      headline.className = 'news-headline';
+      headline.textContent = title;
+      const meta = document.createElement('div');
+      meta.className = 'news-meta';
+      meta.textContent = timeAgo(item.pubDate || item.published || '');
+      a.appendChild(headline);
+      a.appendChild(meta);
+      listEl.appendChild(a);
+      count++;
     }
+    if (count === 0) throw new Error('no valid items');
     timeEl.textContent = 'Updated ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     setSentiment(key, items.map(i => i.title || '').filter(Boolean));
   }
+
+  // Try every URL with every proxy method
   for (const rssUrl of feed.urls) {
-    try { const res = await fetch(RSS2JSON + encodeURIComponent(rssUrl)); const d = await res.json(); if (d.status === 'ok' && d.items && d.items.length) { render(d.items); return; } } catch(e) {}
-    try { const res = await fetch(PROXIES[0] + encodeURIComponent(rssUrl)); const txt = await res.text(); const xml = new DOMParser().parseFromString(txt, 'text/xml'); const nodes = Array.from(xml.querySelectorAll('item')); if (nodes.length) { render(nodes.map(n => ({ title: n.querySelector('title')?.textContent || '', link: n.querySelector('link')?.textContent || '#', pubDate: n.querySelector('pubDate')?.textContent || '' }))); return; } } catch(e) {}
+    // Method 1: rss2json (handles CORS natively, returns JSON)
+    try {
+      const r = await fetch(RSS2JSON + encodeURIComponent(rssUrl) + '&count=10');
+      const d = await r.json();
+      if (d.status === 'ok' && d.items && d.items.length) { render(d.items); return; }
+    } catch(e) {}
+
+    // Method 2: allorigins (best for raw XML)
+    try {
+      const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl));
+      const txt = await r.text();
+      render(parseXML(txt)); return;
+    } catch(e) {}
+
+    // Method 3: corsproxy
+    try {
+      const r = await fetch('https://corsproxy.io/?url=' + encodeURIComponent(rssUrl));
+      const txt = await r.text();
+      render(parseXML(txt)); return;
+    } catch(e) {}
+
+    // Method 4: allorigins get wrapper (returns JSON with contents field)
+    try {
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl));
+      const d = await r.json();
+      if (d.contents) { render(parseXML(d.contents)); return; }
+    } catch(e) {}
   }
+
   listEl.innerHTML = '<div class="news-loading">Headlines unavailable — will retry</div>';
   timeEl.textContent = '—';
 }
@@ -1877,7 +2009,11 @@ function setSentiment(key, headlines) {
   scoreEl.textContent = (score >= 0 ? '+' : '') + (score * 100).toFixed(0) + ' sentiment';
 }
 
-function loadAllNews() { fetchRSS('nyt'); fetchRSS('mw'); fetchRSS('bbg'); }
+function loadAllNews() {
+  fetchRSS('nyt');
+  setTimeout(() => fetchRSS('mw'), 800);
+  setTimeout(() => fetchRSS('bbg'), 1600);
+}
 
 
 // ── Financial Dictionary ──
