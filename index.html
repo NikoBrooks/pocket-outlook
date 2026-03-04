@@ -436,22 +436,7 @@
   }
 
   .chart-loading.hidden { display: none; }
-    /* ── News Ticker ── */
-  .tkstrip { width:100%; background:#0d0d10; border-bottom:1px solid var(--border); display:flex; align-items:center; height:40px; overflow:hidden; position:relative; }
-  .tkbadge { flex-shrink:0; display:flex; align-items:center; gap:10px; padding:0 16px; height:100%; border-right:1px solid var(--border); background:#0d0d10; }
-  .tklive { font-size:9px; letter-spacing:0.25em; text-transform:uppercase; color:var(--green); font-family:var(--mono); font-weight:600; }
-  .tkselect-wrap { position:relative; display:flex; align-items:center; }
-  .tkselect { appearance:none; background:#0d0d10; border:1px solid var(--border); color:var(--text); font-family:var(--mono); font-size:10px; letter-spacing:0.08em; padding:4px 24px 4px 8px; border-radius:4px; cursor:pointer; outline:none; transition:border-color 0.15s; }
-  .tkselect:hover, .tkselect:focus { border-color:var(--border-bright); }
-  .tkselect option { background:#111113; color:var(--text); }
-  .tkselect-arrow { position:absolute; right:7px; font-size:9px; color:var(--muted); pointer-events:none; }
-  .tkscroll { flex:1; overflow:hidden; height:100%; -webkit-mask-image:linear-gradient(to right,transparent 0%,black 3%,black 97%,transparent 100%); }
-  .tktrack { display:flex; align-items:center; height:100%; white-space:nowrap; will-change:transform; }
-  .tktrack:hover { animation-play-state:paused; }
-  @keyframes tkS { 0% { transform:translateX(0); } 100% { transform:translateX(-50%); } }
-  .tktw { font-size:11px; color:#c0c0cc; font-family:var(--sans); padding:0 32px 0 0; line-height:1.4; }
-  .tksep { color:#2a2a35; padding:0 16px 0 0; font-size:10px; }
-  .tkmsg { font-size:10px; color:var(--muted); font-family:var(--mono); padding:0 20px; letter-spacing:0.08em; }
+  
 
 
   /* ── Chart enhancements ── */
@@ -984,26 +969,6 @@
     <button class="refresh-btn" id="refresh-btn" onclick="fetchAll()">↻ Refresh</button>
   </div>
 </header>
-
-<div class="tkstrip">
-  <div class="tkbadge" id="tkBadge">
-    <span class="tklive">LIVE</span>
-    <div class="tkselect-wrap">
-      <select class="tkselect" id="tkSelect">
-        <option value="federalreserve">Federal Reserve</option>
-        <option value="LynAldenContact">Lyn Alden</option>
-        <option value="MacroAlf">MacroAlf</option>
-        <option value="elerianm">Bloomberg Markets</option>
-        <option value="NickTimiraos">MarketWatch</option>
-        <option value="zerohedge">Zero Hedge</option>
-        <option value="wsj">Wall Street Journal</option>
-        <option value="ft">Financial Times</option>
-      </select>
-      <span class="tkselect-arrow">▾</span>
-    </div>
-  </div>
-  <div class="tkscroll"><div class="tktrack" id="tkTrack"><span class="tkmsg">Loading news...</span></div></div>
-</div>
 
 <main>
 
@@ -1541,83 +1506,6 @@ async function fetchAll() {
 
 // ── Ticker ──
 // Real RSS feeds for financial accounts/sources (no X API needed)
-const TICKER_FEEDS = {
-  'federalreserve': 'https://www.federalreserve.gov/feeds/press_all.xml',
-  'LynAldenContact': 'https://www.lynalden.com/feed/',
-  'MacroAlf':        'https://themacrocompass.substack.com/feed',
-  'elerianm':        'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
-  'NickTimiraos':    'https://www.marketwatch.com/rss/topstories',
-  'GundlachCapital': 'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
-  'zerohedge':       'https://feeds.feedburner.com/zerohedge/feed',
-  'wsj':             'https://www.marketwatch.com/rss/topstories',
-  'ft':              'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
-};
-
-const FALLBACK_FEEDS = [
-  'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
-  'https://www.marketwatch.com/rss/topstories',
-  'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
-];
-
-async function loadTicker(handle) {
-  handle = handle.replace(/^@/, '').trim();
-  if (!handle) return;
-  document.getElementById('tkHdl').textContent = '@' + handle;
-  const t = document.getElementById('tkTrack');
-  t.style.animation = 'none';
-  t.innerHTML = '<span class="tkmsg">Loading ' + handle + '...</span>';
-
-  const feedUrl = TICKER_FEEDS[handle] || TICKER_FEEDS[handle.toLowerCase()] || null;
-  const urlsToTry = feedUrl ? [feedUrl, ...FALLBACK_FEEDS] : FALLBACK_FEEDS;
-
-  let items = [];
-  for (const rssUrl of urlsToTry) {
-    if (items.length) break;
-    // Try rss2json
-    try {
-      const r = await fetch(RSS2JSON + encodeURIComponent(rssUrl) + '&count=15');
-      const d = await r.json();
-      if (d.status === 'ok' && d.items && d.items.length > 0) {
-        items = d.items.map(i => {
-          const el = document.createElement('div');
-          el.innerHTML = i.title || '';
-          return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160);
-        }).filter(x => x.length > 8);
-      }
-    } catch(e) {}
-    if (items.length) break;
-    // Try raw via proxy
-    for (const proxy of PROXIES) {
-      try {
-        const r = await fetch(proxy + encodeURIComponent(rssUrl));
-        const txt = await r.text();
-        const xml = new DOMParser().parseFromString(txt, 'text/xml');
-        const nodes = Array.from(xml.querySelectorAll('item')).slice(0, 15);
-        if (nodes.length > 0) {
-          items = nodes.map(n => {
-            const el = document.createElement('div');
-            el.innerHTML = n.querySelector('title')?.textContent || '';
-            return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160);
-          }).filter(x => x.length > 8);
-          if (items.length) break;
-        }
-      } catch(e) {}
-    }
-    if (items.length) break;
-  }
-
-  if (!items.length) {
-    t.innerHTML = '<span class="tkmsg">Feed unavailable — showing market news</span>';
-    t.style.animation = 'none';
-    return;
-  }
-
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const chunk = items.map(x => '<span class="tktw">' + esc(x) + '</span><span class="tksep">◆</span>').join('');
-  t.innerHTML = chunk + chunk;
-  void t.offsetWidth;
-  t.style.animation = 'tkS 35s linear infinite';
-}
 
 // ── Charts ──
 const chartInstances = {};
@@ -1733,29 +1621,17 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   const ctx = document.getElementById(canvasId).getContext('2d');
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
   chartRawPoints[canvasId] = points;
-  // Attach drag-to-highlight events
+  // Crosshair hover events
   const canvas = document.getElementById(canvasId);
-  canvas.addEventListener('mousedown', e => {
-    const chart = chartInstances[canvasId];
-    if (!chart) return;
-    chart._dragStart = e.offsetX;
-    chart._dragEnd = null;
-    chart._dragging = true;
-  });
   canvas.addEventListener('mousemove', e => {
     const chart = chartInstances[canvasId];
     if (!chart) return;
     chart._hoverX = e.offsetX;
-    if (chart._dragging) chart._dragEnd = e.offsetX;
     chart.draw();
-  });
-  canvas.addEventListener('mouseup', () => {
-    const chart = chartInstances[canvasId];
-    if (chart) chart._dragging = false;
   });
   canvas.addEventListener('mouseleave', () => {
     const chart = chartInstances[canvasId];
-    if (chart) { chart._hoverX = null; chart._dragStart = null; chart._dragEnd = null; chart.draw(); }
+    if (chart) { chart._hoverX = null; chart.draw(); }
   });
   const first = points[0].y, last = points[points.length - 1].y;
   // Use live metadata prices for badge if available (1D), else use chart points
@@ -1768,33 +1644,21 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   const step = Math.max(1, Math.floor(points.length / 80));
   const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
   setPctBadge(chartNum, totalPct);
-  // Custom crosshair + drag-highlight plugin
+  // Clean crosshair plugin
   const crosshairPlugin = {
     id: 'crosshair_' + canvasId,
     afterDraw(chart) {
+      if (chart._hoverX == null) return;
       const ctx2 = chart.ctx;
       const area = chart.chartArea;
       ctx2.save();
-      // Drag highlight region
-      if (chart._dragStart != null && chart._dragEnd != null) {
-        const x1 = Math.min(chart._dragStart, chart._dragEnd);
-        const x2 = Math.max(chart._dragStart, chart._dragEnd);
-        ctx2.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx2.fillRect(x1, area.top, x2 - x1, area.bottom - area.top);
-        ctx2.strokeStyle = 'rgba(255,255,255,0.2)';
-        ctx2.lineWidth = 1;
-        ctx2.strokeRect(x1, area.top, x2 - x1, area.bottom - area.top);
-      }
-      // Crosshair vertical line
-      if (chart._hoverX != null) {
-        ctx2.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx2.lineWidth = 1;
-        ctx2.setLineDash([3, 3]);
-        ctx2.beginPath();
-        ctx2.moveTo(chart._hoverX, area.top);
-        ctx2.lineTo(chart._hoverX, area.bottom);
-        ctx2.stroke();
-      }
+      ctx2.strokeStyle = 'rgba(200,200,220,0.2)';
+      ctx2.lineWidth = 1;
+      ctx2.setLineDash([3, 4]);
+      ctx2.beginPath();
+      ctx2.moveTo(chart._hoverX, area.top);
+      ctx2.lineTo(chart._hoverX, area.bottom);
+      ctx2.stroke();
       ctx2.restore();
     }
   };
@@ -2268,11 +2132,6 @@ updateClock();
 
 // ── Ticker UI ──
 document.addEventListener('DOMContentLoaded', () => {
-  const tkSel = document.getElementById('tkSelect');
-  if (tkSel) {
-    tkSel.addEventListener('change', () => loadTicker(tkSel.value));
-  }
-
   attachDefinitions();
 
   // ── Chart tabs ──
@@ -2305,8 +2164,7 @@ fetchAll();
 loadAllCharts();
 loadFedData();
 loadAllNews();
-loadTicker('federalreserve');
-  if(document.getElementById('tkSelect')) document.getElementById('tkSelect').value='federalreserve';
+
 setInterval(fetchAll, 60000);
 setInterval(loadAllCharts, 300000);
 setInterval(loadAllNews, 600000);
