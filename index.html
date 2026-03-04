@@ -784,7 +784,7 @@
   </div>
 </header>
 
-<div class="tkstrip"><div class="tkbadge" id="tkBadge"><span class="tkx">&#120143;</span><span class="tkhdl" id="tkHdl">@federalreserve</span><button class="tkedit" id="tkEdit">&#9998;</button><div class="tkpopup" id="tkPopup"><div class="tklbl">X / Twitter Handle</div><div class="tkrow"><input class="tkinp" id="tkInp" type="text" placeholder="@handle" value="federalreserve"/><button class="tkgo" id="tkGo">GO</button></div><div class="tkpres"><button class="tkpre" data-h="federalreserve">Fed</button><button class="tkpre" data-h="RaoulGMI">Raoul GMI</button><button class="tkpre" data-h="LynAldenContact">Lyn Alden</button><button class="tkpre" data-h="elerianm">El-Erian</button><button class="tkpre" data-h="NickTimiraos">WSJ Fed</button><button class="tkpre" data-h="GundlachCapital">Gundlach</button><button class="tkpre" data-h="MacroAlf">MacroAlf</button><button class="tkpre" data-h="zerohedge">ZeroHedge</button></div></div></div><div class="tkscroll"><div class="tktrack" id="tkTrack"><span class="tkmsg">Loading tweets...</span></div></div></div>
+<div class="tkstrip"><div class="tkbadge" id="tkBadge"><span class="tkx" style="font-size:10px;letter-spacing:0.1em;">NEWS</span><span class="tkhdl" id="tkHdl">@federalreserve</span><button class="tkedit" id="tkEdit">&#9998;</button><div class="tkpopup" id="tkPopup"><div class="tklbl">X / Twitter Handle</div><div class="tkrow"><input class="tkinp" id="tkInp" type="text" placeholder="@handle" value="federalreserve"/><button class="tkgo" id="tkGo">GO</button></div><div class="tkpres"><button class="tkpre" data-h="federalreserve">Fed</button><button class="tkpre" data-h="LynAldenContact">Lyn Alden</button><button class="tkpre" data-h="MacroAlf">MacroAlf</button><button class="tkpre" data-h="elerianm">Bloomberg</button><button class="tkpre" data-h="NickTimiraos">MarketWatch</button><button class="tkpre" data-h="zerohedge">ZeroHedge</button><button class="tkpre" data-h="wsj">WSJ</button><button class="tkpre" data-h="ft">FT</button></div></div></div><div class="tkscroll"><div class="tktrack" id="tkTrack"><span class="tkmsg">Loading tweets...</span></div></div></div>
 
 <main>
 
@@ -1320,13 +1320,25 @@ async function fetchAll() {
   if (btn) { clearInterval(btn._spinner); btn.textContent = '↻ Refresh'; btn.classList.remove('spinning'); }
 }
 
-// ── Twitter Ticker ──
-const NITTER_HOSTS = [
-  'https://nitter.privacydev.net',
-  'https://nitter.poast.org',
-  'https://nitter.cz',
-  'https://nitter.nl',
-  'https://lightbrd.com',
+// ── Ticker ──
+// Real RSS feeds for financial accounts/sources (no X API needed)
+const TICKER_FEEDS = {
+  'federalreserve': 'https://www.federalreserve.gov/feeds/press_all.xml',
+  'LynAldenContact': 'https://www.lynalden.com/feed/',
+  'MacroAlf':        'https://themacrocompass.substack.com/feed',
+  'elerianm':        'https://feeds.bloomberg.com/markets/news.rss',
+  'NickTimiraos':    'https://feeds.content.dowjones.io/public/rss/mw_topstories',
+  'GundlachCapital': 'https://feeds.bloomberg.com/markets/news.rss',
+  'zerohedge':       'https://feeds.feedburner.com/zerohedge/feed',
+  'wsj':             'https://feeds.content.dowjones.io/public/rss/mw_topstories',
+  'ft':              'https://www.ft.com/rss/home',
+};
+
+// Fallback feeds tried in order if handle has no mapping
+const FALLBACK_FEEDS = [
+  'https://feeds.bloomberg.com/markets/news.rss',
+  'https://www.marketwatch.com/rss/topstories',
+  'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml',
 ];
 
 async function loadTicker(handle) {
@@ -1335,45 +1347,58 @@ async function loadTicker(handle) {
   document.getElementById('tkHdl').textContent = '@' + handle;
   const t = document.getElementById('tkTrack');
   t.style.animation = 'none';
-  t.innerHTML = '<span class="tkmsg">Loading @' + handle + '...</span>';
+  t.innerHTML = '<span class="tkmsg">Loading ' + handle + '...</span>';
 
-  let tw = [];
-  for (const host of NITTER_HOSTS) {
-    if (tw.length >= 6) break;
-    const rssUrl = host + '/' + handle + '/rss';
+  const feedUrl = TICKER_FEEDS[handle] || TICKER_FEEDS[handle.toLowerCase()] || null;
+  const urlsToTry = feedUrl ? [feedUrl, ...FALLBACK_FEEDS] : FALLBACK_FEEDS;
+
+  let items = [];
+  for (const rssUrl of urlsToTry) {
+    if (items.length) break;
+    // Try rss2json
     try {
-      const r = await fetch(RSS2JSON + encodeURIComponent(rssUrl) + '&count=12');
+      const r = await fetch(RSS2JSON + encodeURIComponent(rssUrl) + '&count=15');
       const d = await r.json();
       if (d.status === 'ok' && d.items && d.items.length > 0) {
-        tw = d.items.map(i => { const el = document.createElement('div'); el.innerHTML = i.description || i.title || ''; return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 240); }).filter(x => x.length > 8);
-        if (tw.length) break;
+        items = d.items.map(i => {
+          const el = document.createElement('div');
+          el.innerHTML = i.title || '';
+          return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+        }).filter(x => x.length > 8);
       }
     } catch(e) {}
-    try {
-      for (const proxy of PROXIES) {
+    if (items.length) break;
+    // Try raw via proxy
+    for (const proxy of PROXIES) {
+      try {
         const r = await fetch(proxy + encodeURIComponent(rssUrl));
         const txt = await r.text();
         const xml = new DOMParser().parseFromString(txt, 'text/xml');
-        const items = Array.from(xml.querySelectorAll('item')).slice(0, 12);
-        if (items.length > 0) {
-          tw = items.map(n => { const el = document.createElement('div'); el.innerHTML = n.querySelector('description')?.textContent || n.querySelector('title')?.textContent || ''; return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 240); }).filter(x => x.length > 8);
-          if (tw.length) break;
+        const nodes = Array.from(xml.querySelectorAll('item')).slice(0, 15);
+        if (nodes.length > 0) {
+          items = nodes.map(n => {
+            const el = document.createElement('div');
+            el.innerHTML = n.querySelector('title')?.textContent || '';
+            return (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+          }).filter(x => x.length > 8);
+          if (items.length) break;
         }
-      }
-      if (tw.length) break;
-    } catch(e) {}
+      } catch(e) {}
+    }
+    if (items.length) break;
   }
 
-  if (!tw.length) {
-    t.innerHTML = '<span class="tkmsg">@' + handle + ' feed unavailable — Nitter RSS bridges are rate-limited. Try: federalreserve · LynAldenContact · MacroAlf · elerianm</span><span class="tksep">◆</span><span class="tkmsg">@' + handle + ' feed unavailable — Nitter RSS bridges are rate-limited. Try: federalreserve · LynAldenContact · MacroAlf · elerianm</span>';
-    t.style.animation = 'tkS 40s linear infinite';
+  if (!items.length) {
+    t.innerHTML = '<span class="tkmsg">Feed unavailable — showing market news</span>';
+    t.style.animation = 'none';
     return;
   }
+
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const chunk = tw.map(x => '<span class="tktw">' + esc(x) + '</span><span class="tksep">◆</span>').join('');
+  const chunk = items.map(x => '<span class="tktw">' + esc(x) + '</span><span class="tksep">◆</span>').join('');
   t.innerHTML = chunk + chunk;
   void t.offsetWidth;
-  t.style.animation = 'tkS 55s linear infinite';
+  t.style.animation = 'tkS 70s linear infinite';
 }
 
 // ── Charts ──
