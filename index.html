@@ -766,6 +766,99 @@
     letter-spacing: 0.04em;
   }
 
+
+  /* ── Definition Popup ── */
+  #def-popup {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    width: 340px;
+    background: #16161a;
+    border: 1px solid var(--border-bright);
+    border-radius: 10px;
+    padding: 20px;
+    z-index: 999;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+    animation: defSlideIn 0.25s ease forwards;
+  }
+
+  @keyframes defSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .def-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 12px;
+  }
+
+  .def-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    text-transform: uppercase;
+    line-height: 1.3;
+  }
+
+  .def-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-top: 1px;
+  }
+
+  .def-close:hover { color: var(--text); }
+
+  .def-body {
+    font-size: 12px;
+    color: #c0c0cc;
+    line-height: 1.6;
+    font-family: var(--sans);
+    margin-bottom: 10px;
+  }
+
+  .def-formula {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: var(--mono);
+    background: rgba(255,255,255,0.04);
+    border-left: 2px solid var(--border-bright);
+    padding: 6px 10px;
+    border-radius: 0 4px 4px 0;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+
+  .def-tip {
+    font-size: 11px;
+    color: #a0c0a0;
+    font-family: var(--sans);
+    line-height: 1.5;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+
+  .def-tip-label {
+    display: block;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 4px;
+    font-family: var(--mono);
+  }
+
+  .card[title] .card-label { text-decoration: underline dotted rgba(107,107,122,0.4); }
+
 </style>
 </head>
 <body>
@@ -784,7 +877,7 @@
   </div>
 </header>
 
-<div class="tkstrip"><div class="tkbadge" id="tkBadge"><span class="tkx" style="font-size:10px;letter-spacing:0.1em;">NEWS</span><span class="tkhdl" id="tkHdl">@federalreserve</span><button class="tkedit" id="tkEdit">&#9998;</button><div class="tkpopup" id="tkPopup"><div class="tklbl">X / Twitter Handle</div><div class="tkrow"><input class="tkinp" id="tkInp" type="text" placeholder="@handle" value="federalreserve"/><button class="tkgo" id="tkGo">GO</button></div><div class="tkpres"><button class="tkpre" data-h="federalreserve">Fed</button><button class="tkpre" data-h="LynAldenContact">Lyn Alden</button><button class="tkpre" data-h="MacroAlf">MacroAlf</button><button class="tkpre" data-h="elerianm">Bloomberg</button><button class="tkpre" data-h="NickTimiraos">MarketWatch</button><button class="tkpre" data-h="zerohedge">ZeroHedge</button><button class="tkpre" data-h="wsj">WSJ</button><button class="tkpre" data-h="ft">FT</button></div></div></div><div class="tkscroll"><div class="tktrack" id="tkTrack"><span class="tkmsg">Loading tweets...</span></div></div></div>
+<div class="tkstrip"><div class="tkbadge" id="tkBadge"><span class="tkx" style="font-size:10px;letter-spacing:0.15em;color:var(--muted);">LIVE</span><div class="tkpres" style="display:flex;gap:4px;padding:0;""><button class="tkpre" data-h="federalreserve">Fed</button><button class="tkpre" data-h="LynAldenContact">Lyn Alden</button><button class="tkpre" data-h="MacroAlf">MacroAlf</button><button class="tkpre" data-h="elerianm">Bloomberg</button><button class="tkpre" data-h="NickTimiraos">MarketWatch</button><button class="tkpre" data-h="zerohedge">ZeroHedge</button><button class="tkpre" data-h="wsj">WSJ</button><button class="tkpre" data-h="ft">FT</button></div></div><div class="tkscroll"><div class="tktrack" id="tkTrack"><span class="tkmsg">Loading news...</span></div></div></div>
 
 <main>
 
@@ -1398,7 +1491,7 @@ async function loadTicker(handle) {
   const chunk = items.map(x => '<span class="tktw">' + esc(x) + '</span><span class="tksep">◆</span>').join('');
   t.innerHTML = chunk + chunk;
   void t.offsetWidth;
-  t.style.animation = 'tkS 70s linear infinite';
+  t.style.animation = 'tkS 35s linear infinite';
 }
 
 // ── Charts ──
@@ -1664,6 +1757,162 @@ function setSentiment(key, headlines) {
 
 function loadAllNews() { fetchRSS('nyt'); fetchRSS('mw'); fetchRSS('bbg'); }
 
+
+// ── Financial Dictionary ──
+const DEFINITIONS = {
+  'S&P 500': {
+    title: 'S&P 500',
+    body: 'The Standard & Poor\'s 500 — a stock market index tracking the 500 largest publicly traded U.S. companies by market cap. Widely considered the best single gauge of large-cap U.S. equities and a proxy for the overall market.',
+    formula: null,
+    tip: 'Buffett famously recommends most investors simply buy a low-cost S&P 500 index fund and hold it forever.'
+  },
+  'NASDAQ': {
+    title: 'NASDAQ Composite',
+    body: 'An index of over 3,000 stocks listed on the NASDAQ exchange, heavily weighted toward technology and growth companies. More volatile than the S&P 500 due to its tech concentration.',
+    formula: null,
+    tip: 'When the NASDAQ significantly diverges from the S&P 500, it often signals a rotation between growth and value stocks.'
+  },
+  'Dow Jones': {
+    title: 'Dow Jones Industrial Average',
+    body: 'One of the oldest stock indices — tracks 30 large, blue-chip U.S. companies. Price-weighted (higher-priced stocks have more influence), which makes it less representative than market-cap-weighted indices like the S&P 500.',
+    formula: null,
+    tip: 'Value investors often pay less attention to the Dow than the S&P 500 due to its small sample size and price-weighting methodology.'
+  },
+  'VIX': {
+    title: 'VIX — CBOE Volatility Index',
+    body: 'Measures the market\'s expectation of 30-day volatility, derived from S&P 500 options prices. Often called the "Fear Index." Spikes during market stress and falls during calm periods.',
+    formula: 'Derived from weighted S&P 500 option prices across strikes',
+    tip: 'Warren Buffett\'s paraphrase: "Be greedy when others are fearful." A high VIX often marks buying opportunities for long-term value investors.'
+  },
+  '3-Mo T-Bill': {
+    title: '3-Month Treasury Bill',
+    body: 'Short-term U.S. government debt maturing in 90 days. Considered the closest thing to a risk-free rate of return. Used as the baseline in many valuation models including the Capital Asset Pricing Model (CAPM).',
+    formula: 'Risk-Free Rate — the floor below which no rational investor should accept returns',
+    tip: 'When T-Bill yields are high, the hurdle rate for stocks rises. A stock must offer returns meaningfully above the T-Bill rate to justify the added risk.'
+  },
+  '10-Yr Treasury': {
+    title: '10-Year Treasury Yield',
+    body: 'The annualized return on U.S. government bonds maturing in 10 years. The most watched interest rate in the world — influences mortgage rates, corporate borrowing costs, and stock valuations.',
+    formula: 'Often used as the discount rate in DCF models',
+    tip: 'Rising 10-year yields compress equity valuations, especially for growth stocks with earnings far in the future. Value stocks tend to be more resilient.'
+  },
+  '30-Yr Treasury': {
+    title: '30-Year Treasury Yield',
+    body: 'The yield on 30-year U.S. government bonds. Reflects long-term inflation expectations and growth outlook. A key benchmark for mortgage rates and long-duration asset pricing.',
+    formula: null,
+    tip: 'The spread between 30-year and 2-year yields (yield curve) is a classic recession predictor — inversion has preceded every U.S. recession since 1955.'
+  },
+  'USD Index': {
+    title: 'U.S. Dollar Index (DXY)',
+    body: 'Measures the value of the U.S. dollar against a basket of six major currencies (EUR, JPY, GBP, CAD, SEK, CHF). A rising DXY generally pressures commodities, emerging markets, and multinational earnings.',
+    formula: 'Geometric weighted average: EUR (57.6%), JPY (13.6%), GBP (11.9%), others',
+    tip: 'For value investors with international exposure, a strong dollar erodes the USD value of foreign earnings — worth factoring into cross-border valuations.'
+  },
+  'CPI': {
+    title: 'Consumer Price Index (CPI)',
+    body: 'Measures the average change in prices paid by consumers for goods and services. The primary gauge of inflation in the U.S., published monthly by the Bureau of Labor Statistics.',
+    formula: 'CPI = (Cost of basket in current period / Cost of basket in base period) × 100',
+    tip: 'High inflation erodes the real value of fixed cash flows. Value investors prefer businesses with pricing power — the ability to raise prices without losing customers.'
+  },
+  'Fed Funds Rate': {
+    title: 'Federal Funds Rate',
+    body: 'The interest rate at which banks lend reserve balances to other banks overnight. Set by the Federal Reserve\'s FOMC. The most influential interest rate in the world — it cascades through all other borrowing costs.',
+    formula: null,
+    tip: 'Low rates make stocks relatively more attractive (TINA — "There Is No Alternative"). High rates raise the discount rate, compressing valuations across all asset classes.'
+  },
+  'FOMC': {
+    title: 'Federal Open Market Committee (FOMC)',
+    body: 'The 12-member committee within the Federal Reserve that sets U.S. monetary policy. Meets 8 times per year to decide whether to raise, lower, or hold the Federal Funds Rate.',
+    formula: null,
+    tip: 'FOMC meeting dates are key calendar events — markets often move significantly on rate decisions and the language in the Fed\'s statement (the "dot plot").'
+  },
+  'Gold Futures': {
+    title: 'Gold Futures',
+    body: 'Contracts to buy or sell gold at a predetermined price at a future date. Used by investors as a hedge against inflation, currency debasement, and systemic risk. Gold has no yield but historically preserves purchasing power.',
+    formula: null,
+    tip: 'Buffett famously avoids gold ("it just sits there"). But many value investors like Lyn Alden hold it as macro insurance against currency debasement scenarios.'
+  },
+  'Brent Crude': {
+    title: 'Brent Crude Oil',
+    body: 'The international benchmark for oil prices, sourced from the North Sea. Used to price roughly two-thirds of global oil supplies. A key input into inflation, transportation costs, and energy sector valuations.',
+    formula: null,
+    tip: 'Oil prices significantly impact CPI. Energy companies are classic value territory — cyclical, capital-intensive, often trading below intrinsic value at cycle lows.'
+  },
+  'Bitcoin': {
+    title: 'Bitcoin (BTC)',
+    body: 'The first and largest cryptocurrency by market cap. A decentralized digital asset with a fixed supply of 21 million coins. Increasingly held by institutions as "digital gold" — a store of value outside the traditional financial system.',
+    formula: null,
+    tip: 'Traditional value investors are divided on Bitcoin. Some (like Lyn Alden) see it as legitimate macro insurance. Others (like Buffett and Munger) view it as purely speculative.'
+  },
+  'Ethereum': {
+    title: 'Ethereum (ETH)',
+    body: 'The second-largest cryptocurrency — a programmable blockchain platform that enables smart contracts and decentralized applications (dApps). ETH is used to pay for computation on the network ("gas fees").',
+    formula: null,
+    tip: 'Unlike Bitcoin\'s fixed supply, Ethereum\'s issuance model has shifted post-merge. It can be analyzed more like a tech platform — price-to-revenue ratios and fee revenue are emerging as valuation metrics.'
+  },
+};
+
+// Normalize card labels to dictionary keys
+const LABEL_MAP = {
+  's&p 500': 'S&P 500',
+  'nasdaq': 'NASDAQ',
+  'dow jones': 'Dow Jones',
+  'vix — fear index': 'VIX',
+  'vix': 'VIX',
+  '3-mo t-bill — risk free': '3-Mo T-Bill',
+  '3-mo t-bill': '3-Mo T-Bill',
+  '10-yr treasury yield': '10-Yr Treasury',
+  '30-yr treasury yield': '30-Yr Treasury',
+  'usd index (dxy)': 'USD Index',
+  'cpi (yoy) — latest': 'CPI',
+  'fed funds rate': 'Fed Funds Rate',
+  'next fomc meeting': 'FOMC',
+  'gold futures': 'Gold Futures',
+  'brent crude oil': 'Brent Crude',
+  'bitcoin (btc)': 'Bitcoin',
+  'ethereum (eth)': 'Ethereum',
+};
+
+function showDefinition(key) {
+  const def = DEFINITIONS[key];
+  if (!def) return;
+
+  // Remove existing popup if any
+  const existing = document.getElementById('def-popup');
+  if (existing) existing.remove();
+
+  const popup = document.createElement('div');
+  popup.id = 'def-popup';
+  popup.innerHTML = `
+    <div class="def-header">
+      <span class="def-title">${def.title}</span>
+      <button class="def-close" onclick="document.getElementById('def-popup').remove()">✕</button>
+    </div>
+    <div class="def-body">${def.body}</div>
+    ${def.formula ? `<div class="def-formula">${def.formula}</div>` : ''}
+    ${def.tip ? `<div class="def-tip"><span class="def-tip-label">Value Investor's Take</span>${def.tip}</div>` : ''}
+  `;
+  document.body.appendChild(popup);
+
+  // Auto-dismiss after 12s
+  setTimeout(() => { if (document.getElementById('def-popup')) document.getElementById('def-popup').remove(); }, 12000);
+}
+
+// Attach double-click listeners to all cards
+function attachDefinitions() {
+  document.querySelectorAll('.card').forEach(card => {
+    const labelEl = card.querySelector('.card-label');
+    if (!labelEl) return;
+    const labelText = labelEl.textContent.trim().toLowerCase();
+    const key = LABEL_MAP[labelText];
+    if (!key) return;
+    card.addEventListener('dblclick', e => { e.preventDefault(); showDefinition(key); });
+    card.title = 'Double-click for definition';
+    labelEl.style.cursor = 'help';
+  });
+}
+
+
 // ── Clock ──
 function updateClock() {
   const el = document.getElementById('clock');
@@ -1674,14 +1923,9 @@ updateClock();
 
 // ── Ticker UI ──
 document.addEventListener('DOMContentLoaded', () => {
-  const badge = document.getElementById('tkBadge'), popup = document.getElementById('tkPopup'), inp = document.getElementById('tkInp');
-  if (badge && popup && inp) {
-    document.getElementById('tkEdit').addEventListener('click', e => { e.stopPropagation(); popup.classList.toggle('open'); setTimeout(() => inp.focus(), 50); });
-    document.getElementById('tkGo').addEventListener('click', () => { loadTicker(inp.value); popup.classList.remove('open'); });
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { loadTicker(inp.value); popup.classList.remove('open'); } if (e.key === 'Escape') popup.classList.remove('open'); });
-    document.querySelectorAll('.tkpre').forEach(x => x.addEventListener('click', () => { inp.value = x.dataset.h; loadTicker(x.dataset.h); popup.classList.remove('open'); }));
-    document.addEventListener('click', e => { if (!badge.contains(e.target)) popup.classList.remove('open'); });
-  }
+  document.querySelectorAll('.tkpre').forEach(x => x.addEventListener('click', () => { loadTicker(x.dataset.h); }));
+
+  attachDefinitions();
 
   // ── Chart tabs ──
   document.querySelectorAll('.chart-tabs').forEach(tabGroup => {
