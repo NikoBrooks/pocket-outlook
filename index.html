@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>Pocket Outlook</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -146,8 +146,9 @@
     .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 600px) {
-    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-    main { padding: 16px; }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    main { padding: 12px; }
   }
 
   .card {
@@ -315,6 +316,9 @@
   }
 
   @media (max-width: 900px) {
+    .charts-row { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
     .charts-row { grid-template-columns: 1fr; }
   }
 
@@ -950,6 +954,137 @@
   @media (max-width: 600px) {
     .dict-panel { width: 100%; right: -100%; }
     .dict-fab-label { display: none; }
+  }
+
+
+  /* ════════════════════════════════════════
+     MOBILE RESPONSIVE — full overhaul
+     ════════════════════════════════════════ */
+  @media (max-width: 768px) {
+
+    /* ── Header ── */
+    header {
+      padding: 10px 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { font-size: 11px; letter-spacing: 0.2em; }
+    .nav-tabs {
+      order: 3;
+      width: 100%;
+      gap: 0;
+      border-bottom: none;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      padding: 3px;
+      display: flex;
+    }
+    .nav-tab {
+      flex: 1;
+      text-align: center;
+      font-size: 9px;
+      padding: 6px 4px;
+      letter-spacing: 0.08em;
+      border-radius: 4px;
+    }
+    .nav-tab.active {
+      background: rgba(255,255,255,0.08);
+    }
+    .header-right {
+      gap: 10px;
+      order: 2;
+    }
+    .clock { display: none; }
+    .last-updated { font-size: 9px; }
+    .refresh-btn { font-size: 10px; padding: 5px 10px; }
+
+    /* ── Main layout ── */
+    main { padding: 12px; gap: 20px; }
+
+    /* ── Section headers ── */
+    .section-label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      margin-bottom: 8px;
+    }
+
+    /* ── Cards ── */
+    .grid-4 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+    .grid-3 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+
+    /* Rates section — 3 columns on mobile */
+    .grid-7 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+
+    .card { padding: 12px 14px; }
+    .card-label {
+      font-size: 8px;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+      line-height: 1.3;
+      white-space: normal;
+    }
+    .card-value { font-size: 22px; margin-bottom: 6px; }
+    .card-change { font-size: 9px; padding: 2px 5px; }
+    .card-pct { font-size: 9px; }
+    .card-sub { font-size: 9px; margin-top: 6px; line-height: 1.3; }
+
+    /* Hide the external link arrow on mobile */
+    .card::after { display: none; }
+
+    /* ── Charts ── */
+    .chart-header {
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 12px 8px;
+    }
+    .chart-title-wrap { gap: 6px; }
+    .chart-label { font-size: 10px; }
+    .chart-badge { font-size: 10px; padding: 2px 6px; }
+    .chart-tabs { gap: 4px; }
+    .chart-tab { font-size: 9px; padding: 3px 6px; }
+    .chart-canvas-wrap { height: 160px; }
+
+    /* Range tabs */
+    .range-tabs {
+      gap: 2px;
+      padding: 8px 12px;
+      flex-wrap: wrap;
+    }
+    .range-tab { font-size: 9px; padding: 3px 6px; }
+
+    /* ── News ── */
+    .news-grid { grid-template-columns: 1fr; }
+    .news-panel-header { padding: 10px 14px; }
+    .news-source { font-size: 9px; }
+    .news-headline { font-size: 12px; }
+    .news-meta { font-size: 10px; }
+    .news-item { padding: 10px 14px; }
+    .sentiment-bar-wrap { padding: 6px 14px 8px; }
+    .sentiment-label { font-size: 9px; }
+    .sentiment-score { font-size: 9px; }
+
+    /* ── Dictionary FAB ── */
+    .dict-fab { bottom: 16px; right: 16px; padding: 8px 12px; }
+    .dict-fab-label { display: none; }
+    .dict-panel { width: 100%; right: -100%; }
+
+    /* ── Range bar ── */
+    .range-bar {
+      padding: 6px 12px;
+      justify-content: flex-start;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  /* Extra small — single column everything */
+  @media (max-width: 400px) {
+    .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+    .card-value { font-size: 20px; }
   }
 
 </style>
@@ -1623,16 +1758,21 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   chartRawPoints[canvasId] = points;
   // Crosshair + drag events
   const canvas = document.getElementById(canvasId);
+  function getCanvasX(e, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return clientX - rect.left;
+  }
   canvas.addEventListener('mousedown', e => {
     const chart = chartInstances[canvasId];
     if (!chart) return;
-    chart._dragStart = e.offsetX; chart._dragEnd = null; chart._dragging = true;
+    chart._dragStart = getCanvasX(e, canvas); chart._dragEnd = null; chart._dragging = true;
   });
   canvas.addEventListener('mousemove', e => {
     const chart = chartInstances[canvasId];
     if (!chart) return;
-    chart._hoverX = e.offsetX;
-    if (chart._dragging) chart._dragEnd = e.offsetX;
+    chart._hoverX = getCanvasX(e, canvas);
+    if (chart._dragging) chart._dragEnd = getCanvasX(e, canvas);
     chart.draw();
   });
   canvas.addEventListener('mouseup', () => {
@@ -1642,6 +1782,25 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   canvas.addEventListener('mouseleave', () => {
     const chart = chartInstances[canvasId];
     if (chart) { chart._hoverX = null; chart._dragStart = null; chart._dragEnd = null; chart._dragging = false; chart.draw(); }
+  });
+  // Touch support
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const chart = chartInstances[canvasId];
+    if (!chart) return;
+    chart._dragStart = getCanvasX(e, canvas); chart._dragEnd = null; chart._dragging = true;
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const chart = chartInstances[canvasId];
+    if (!chart) return;
+    chart._hoverX = getCanvasX(e, canvas);
+    if (chart._dragging) chart._dragEnd = getCanvasX(e, canvas);
+    chart.draw();
+  }, { passive: false });
+  canvas.addEventListener('touchend', () => {
+    const chart = chartInstances[canvasId];
+    if (chart) { chart._dragging = false; }
   });
   const first = points[0].y, last = points[points.length - 1].y;
   // Use live metadata prices for badge if available (1D), else use chart points
