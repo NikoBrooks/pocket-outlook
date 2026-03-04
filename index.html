@@ -962,7 +962,7 @@
      ════════════════════════════════════════ */
   @media (max-width: 768px) {
 
-    /* ── Header: single clean row ── */
+    /* ── Header: logo + refresh only ── */
     header {
       padding: 0 16px;
       height: 48px;
@@ -970,41 +970,16 @@
       align-items: center;
       justify-content: space-between;
       flex-wrap: nowrap;
-      gap: 0;
     }
     .logo { font-size: 10px; letter-spacing: 0.2em; flex-shrink: 0; }
-    .nav-tabs {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      background: rgba(10,10,11,0.97);
-      border-top: 1px solid var(--border);
-      backdrop-filter: blur(20px);
-      display: flex;
-      z-index: 200;
-      padding: 0;
-      gap: 0;
-    }
-    .nav-tab {
-      flex: 1;
-      font-size: 9px;
-      padding: 10px 4px 12px;
-      letter-spacing: 0.06em;
-      border-radius: 0;
-      border-bottom: none;
-      border-top: 2px solid transparent;
-      text-align: center;
-    }
-    .nav-tab.active {
-      border-top: 2px solid var(--accent);
-      color: var(--text);
-    }
+    .nav-tabs { display: none; }
     .header-right { gap: 8px; }
     .clock { display: none; }
     .last-updated { display: none; }
     .refresh-btn { font-size: 10px; padding: 5px 10px; }
 
     /* ── Main layout ── */
-    main { padding: 12px 12px 72px; gap: 24px; } /* bottom pad for nav */
+    main { padding: 12px; gap: 24px; }
 
     /* ── Cards ── */
     .grid-4 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
@@ -1056,7 +1031,7 @@
     #drag-tooltip { font-size: 11px; padding: 5px 9px; }
 
     /* ── Dictionary ── */
-    .dict-fab { bottom: 72px; right: 16px; padding: 8px 10px; }
+    .dict-fab { bottom: 20px; right: 16px; padding: 8px 10px; }
     .dict-fab-label { display: none; }
     .dict-panel { width: 100%; right: -100%; }
   }
