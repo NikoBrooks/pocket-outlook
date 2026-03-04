@@ -1417,10 +1417,36 @@ async function fetchChartData(symbol, range, interval) {
       points.push({ x: label, y: closes[i] });
     }
   }
-  // For 1D, use metadata prices so badge matches card exactly
+  // For 1D, filter to only today's session and inject live price as last point
+  let finalPoints = points;
   const livePrice = (interval === '5m' || interval === '30m') ? meta.regularMarketPrice : null;
   const prevClose = (interval === '5m' || interval === '30m') ? (meta.previousClose || meta.chartPreviousClose) : null;
-  return { points, livePrice, prevClose };
+
+  if (interval === '5m' || interval === '30m') {
+    // Only keep points from today
+    const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const todayTimestamps = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (new Date(timestamps[i] * 1000) >= todayStart && closes[i] != null) {
+        todayTimestamps.push(i);
+      }
+    }
+    if (todayTimestamps.length > 5) {
+      finalPoints = todayTimestamps.map(i => {
+        const d = new Date(timestamps[i] * 1000);
+        const label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        return { x: label, y: closes[i] };
+      });
+    }
+    // Inject current live price as the last point so chart ends at real market price
+    if (livePrice && finalPoints.length > 0) {
+      const nowLabel = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      finalPoints = [...finalPoints, { x: nowLabel, y: livePrice }];
+    }
+  }
+
+  return { points: finalPoints, livePrice, prevClose };
 }
 
 function setPctBadge(chartNum, pct) {
