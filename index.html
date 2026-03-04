@@ -433,30 +433,22 @@
   }
 
   .chart-loading.hidden { display: none; }
-  .tkstrip{width:100%;background:#0d0d10;border-bottom:1px solid var(--border);display:flex;align-items:center;height:36px;overflow:hidden;position:relative}
-  .tkbadge{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 14px 0 16px;height:100%;border-right:1px solid var(--border);background:#0d0d10;z-index:2;position:relative}
-  .tkx{font-size:12px;color:var(--text);font-weight:700}
-  .tkhdl{font-size:10px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;font-family:var(--mono);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
-  .tkedit{font-size:10px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0 3px;opacity:.6;transition:opacity .15s}
-  .tkedit:hover{opacity:1;color:var(--text)}
-  .tkpopup{display:none;position:absolute;top:38px;left:0;background:#1a1a1f;border:1px solid var(--border);border-radius:6px;padding:12px 14px;z-index:200;min-width:240px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
-  .tkpopup.open{display:block}
-  .tklbl{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-family:var(--mono)}
-  .tkrow{display:flex;gap:6px}
-  .tkinp{flex:1;background:#0d0d10;border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:11px;padding:5px 8px;outline:none}
-  .tkinp:focus{border-color:rgba(255,255,255,.25)}
-  .tkgo{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:10px;padding:5px 12px;border-radius:4px;cursor:pointer}
-  .tkgo:hover{background:rgba(255,255,255,.13)}
-  .tkpres{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
-  .tkpre{background:none;border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:3px;cursor:pointer}
-  .tkpre:hover{color:var(--text);border-color:rgba(255,255,255,.25)}
-  .tkscroll{flex:1;overflow:hidden;height:100%;-webkit-mask-image:linear-gradient(to right,transparent 0%,black 4%,black 96%,transparent 100%)}
-  .tktrack{display:flex;align-items:center;height:100%;white-space:nowrap;animation:tkS 55s linear infinite;will-change:transform}
-  .tktrack:hover{animation-play-state:paused}
-  @keyframes tkS{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-  .tktw{font-size:11px;color:#bfbfcc;font-family:var(--sans);padding:0 28px 0 0;line-height:1.4}
-  .tksep{color:#3a3a44;padding:0 14px 0 0}
-  .tkmsg{font-size:10px;color:var(--muted);font-family:var(--mono);padding:0 20px;letter-spacing:.08em}
+    /* ── News Ticker ── */
+  .tkstrip { width:100%; background:#0d0d10; border-bottom:1px solid var(--border); display:flex; align-items:center; height:40px; overflow:hidden; position:relative; }
+  .tkbadge { flex-shrink:0; display:flex; align-items:center; gap:10px; padding:0 16px; height:100%; border-right:1px solid var(--border); background:#0d0d10; }
+  .tklive { font-size:9px; letter-spacing:0.25em; text-transform:uppercase; color:var(--green); font-family:var(--mono); font-weight:600; }
+  .tkselect-wrap { position:relative; display:flex; align-items:center; }
+  .tkselect { appearance:none; background:#0d0d10; border:1px solid var(--border); color:var(--text); font-family:var(--mono); font-size:10px; letter-spacing:0.08em; padding:4px 24px 4px 8px; border-radius:4px; cursor:pointer; outline:none; transition:border-color 0.15s; }
+  .tkselect:hover, .tkselect:focus { border-color:var(--border-bright); }
+  .tkselect option { background:#111113; color:var(--text); }
+  .tkselect-arrow { position:absolute; right:7px; font-size:9px; color:var(--muted); pointer-events:none; }
+  .tkscroll { flex:1; overflow:hidden; height:100%; -webkit-mask-image:linear-gradient(to right,transparent 0%,black 3%,black 97%,transparent 100%); }
+  .tktrack { display:flex; align-items:center; height:100%; white-space:nowrap; will-change:transform; }
+  .tktrack:hover { animation-play-state:paused; }
+  @keyframes tkS { 0% { transform:translateX(0); } 100% { transform:translateX(-50%); } }
+  .tktw { font-size:11px; color:#c0c0cc; font-family:var(--sans); padding:0 32px 0 0; line-height:1.4; }
+  .tksep { color:#2a2a35; padding:0 16px 0 0; font-size:10px; }
+  .tkmsg { font-size:10px; color:var(--muted); font-family:var(--mono); padding:0 20px; letter-spacing:0.08em; }
 
 
   /* ── Chart enhancements ── */
@@ -767,87 +759,188 @@
   }
 
 
-  /* ── Definition Popup ── */
-  #def-popup {
+
+  /* ── Dictionary FAB & Panel ── */
+  .dict-fab {
     position: fixed;
-    bottom: 32px;
-    right: 32px;
-    width: 340px;
+    bottom: 28px;
+    right: 28px;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     background: #16161a;
     border: 1px solid var(--border-bright);
-    border-radius: 10px;
-    padding: 20px;
-    z-index: 999;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
-    animation: defSlideIn 0.25s ease forwards;
-  }
-
-  @keyframes defSlideIn {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .def-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    gap: 12px;
-  }
-
-  .def-title {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    color: var(--accent);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    padding: 10px 16px;
+    border-radius: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    transition: all 0.2s;
     text-transform: uppercase;
-    line-height: 1.3;
   }
+  .dict-fab:hover {
+    border-color: var(--accent);
+    background: #1e1e24;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+  }
+  .dict-fab-icon { font-size: 13px; }
+  .dict-fab-label { font-size: 10px; letter-spacing: 0.15em; }
 
-  .def-close {
+  .dict-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 600;
+    backdrop-filter: blur(2px);
+  }
+  .dict-overlay.open { display: block; }
+
+  .dict-panel {
+    position: fixed;
+    right: -480px;
+    top: 0;
+    bottom: 0;
+    width: 440px;
+    background: #0e0e11;
+    border-left: 1px solid var(--border);
+    z-index: 700;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
+    overflow: hidden;
+  }
+  .dict-panel.open { right: 0; }
+
+  .dict-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .dict-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .dict-panel-icon { color: var(--green); font-size: 14px; }
+  .dict-panel-close {
     background: none;
     border: none;
     color: var(--muted);
     cursor: pointer;
-    font-size: 12px;
-    padding: 0;
-    flex-shrink: 0;
+    font-size: 14px;
+    padding: 4px;
     line-height: 1;
-    margin-top: 1px;
+    transition: color 0.15s;
   }
+  .dict-panel-close:hover { color: var(--text); }
 
-  .def-close:hover { color: var(--text); }
-
-  .def-body {
+  .dict-search-wrap {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .dict-search {
+    width: 100%;
+    background: #16161a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
     font-size: 12px;
-    color: #c0c0cc;
+    padding: 9px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    letter-spacing: 0.04em;
+  }
+  .dict-search:focus { border-color: var(--border-bright); }
+  .dict-search::placeholder { color: var(--muted); }
+
+  .dict-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .dict-list::-webkit-scrollbar { width: 4px; }
+  .dict-list::-webkit-scrollbar-track { background: transparent; }
+  .dict-list::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  .dict-item {
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(30,30,34,0.8);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .dict-item:hover { background: #15151a; }
+  .dict-item:last-child { border-bottom: none; }
+
+  .dict-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    gap: 10px;
+  }
+  .dict-item-term {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--text);
+    text-transform: uppercase;
+  }
+  .dict-item-tag {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .dict-item-body {
+    font-size: 11px;
+    color: #a0a0b0;
     line-height: 1.6;
     font-family: var(--sans);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
-
-  .def-formula {
+  .dict-item-formula {
     font-size: 10px;
     color: var(--muted);
     font-family: var(--mono);
-    background: rgba(255,255,255,0.04);
+    background: rgba(255,255,255,0.03);
     border-left: 2px solid var(--border-bright);
-    padding: 6px 10px;
-    border-radius: 0 4px 4px 0;
-    margin-bottom: 10px;
+    padding: 5px 10px;
+    border-radius: 0 3px 3px 0;
+    margin-bottom: 8px;
     line-height: 1.5;
   }
-
-  .def-tip {
+  .dict-item-tip {
     font-size: 11px;
-    color: #a0c0a0;
+    color: #90b890;
     font-family: var(--sans);
     line-height: 1.5;
     border-top: 1px solid var(--border);
-    padding-top: 10px;
+    padding-top: 8px;
+    display: none;
   }
-
-  .def-tip-label {
+  .dict-item.expanded .dict-item-tip { display: block; }
+  .dict-item-tip-label {
     display: block;
     font-size: 9px;
     letter-spacing: 0.2em;
@@ -856,8 +949,20 @@
     margin-bottom: 4px;
     font-family: var(--mono);
   }
+  .dict-item-expand {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 4px;
+    font-family: var(--mono);
+  }
+  .dict-item.expanded .dict-item-expand { display: none; }
 
-  .card[title] .card-label { text-decoration: underline dotted rgba(107,107,122,0.4); }
+  @media (max-width: 600px) {
+    .dict-panel { width: 100%; right: -100%; }
+    .dict-fab-label { display: none; }
+  }
 
 </style>
 </head>
@@ -877,7 +982,25 @@
   </div>
 </header>
 
-<div class="tkstrip"><div class="tkbadge" id="tkBadge"><span class="tkx" style="font-size:10px;letter-spacing:0.15em;color:var(--muted);">LIVE</span><div class="tkpres" style="display:flex;gap:4px;padding:0;""><button class="tkpre" data-h="federalreserve">Fed</button><button class="tkpre" data-h="LynAldenContact">Lyn Alden</button><button class="tkpre" data-h="MacroAlf">MacroAlf</button><button class="tkpre" data-h="elerianm">Bloomberg</button><button class="tkpre" data-h="NickTimiraos">MarketWatch</button><button class="tkpre" data-h="zerohedge">ZeroHedge</button><button class="tkpre" data-h="wsj">WSJ</button><button class="tkpre" data-h="ft">FT</button></div></div><div class="tkscroll"><div class="tktrack" id="tkTrack"><span class="tkmsg">Loading news...</span></div></div></div>
+<div class="tkstrip">
+  <div class="tkbadge" id="tkBadge">
+    <span class="tklive">LIVE</span>
+    <div class="tkselect-wrap">
+      <select class="tkselect" id="tkSelect">
+        <option value="federalreserve">Federal Reserve</option>
+        <option value="LynAldenContact">Lyn Alden</option>
+        <option value="MacroAlf">MacroAlf</option>
+        <option value="elerianm">Bloomberg Markets</option>
+        <option value="NickTimiraos">MarketWatch</option>
+        <option value="zerohedge">Zero Hedge</option>
+        <option value="wsj">Wall Street Journal</option>
+        <option value="ft">Financial Times</option>
+      </select>
+      <span class="tkselect-arrow">▾</span>
+    </div>
+  </div>
+  <div class="tkscroll"><div class="tktrack" id="tkTrack"><span class="tkmsg">Loading news...</span></div></div>
+</div>
 
 <main>
 
@@ -1874,44 +1997,95 @@ const LABEL_MAP = {
 };
 
 function showDefinition(key) {
-  const def = DEFINITIONS[key];
-  if (!def) return;
-
-  // Remove existing popup if any
-  const existing = document.getElementById('def-popup');
-  if (existing) existing.remove();
-
-  const popup = document.createElement('div');
-  popup.id = 'def-popup';
-  popup.innerHTML = `
-    <div class="def-header">
-      <span class="def-title">${def.title}</span>
-      <button class="def-close" onclick="document.getElementById('def-popup').remove()">✕</button>
-    </div>
-    <div class="def-body">${def.body}</div>
-    ${def.formula ? `<div class="def-formula">${def.formula}</div>` : ''}
-    ${def.tip ? `<div class="def-tip"><span class="def-tip-label">Value Investor's Take</span>${def.tip}</div>` : ''}
-  `;
-  document.body.appendChild(popup);
-
-  // Auto-dismiss after 12s
-  setTimeout(() => { if (document.getElementById('def-popup')) document.getElementById('def-popup').remove(); }, 12000);
+  openDictionary(key);
 }
 
 // Attach double-click listeners to all cards
 function attachDefinitions() {
-  document.querySelectorAll('.card').forEach(card => {
-    const labelEl = card.querySelector('.card-label');
-    if (!labelEl) return;
-    const labelText = labelEl.textContent.trim().toLowerCase();
-    const key = LABEL_MAP[labelText];
-    if (!key) return;
-    card.addEventListener('dblclick', e => { e.preventDefault(); showDefinition(key); });
-    card.title = 'Double-click for definition';
-    labelEl.style.cursor = 'help';
+  // Definitions accessible via dictionary panel only
+}
+
+
+
+// ── Dictionary Panel ──
+function toggleDictionary(key) {
+  const panel = document.getElementById('dictPanel');
+  const overlay = document.getElementById('dictOverlay');
+  const isOpen = panel.classList.contains('open');
+  if (isOpen && !key) {
+    panel.classList.remove('open');
+    overlay.classList.remove('open');
+  } else {
+    panel.classList.add('open');
+    overlay.classList.add('open');
+    renderDictionary();
+    if (key) {
+      setTimeout(() => {
+        const el = document.querySelector('[data-key="' + key + '"]');
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('expanded'); }
+      }, 320);
+    }
+  }
+}
+
+function openDictionary(key) { toggleDictionary(key); }
+
+// Map each term to which card/chart it appears on
+const TERM_LOCATIONS = {
+  'S&P 500':       { card: 'S&P 500 card',         chart: 'Chart 1 — SPX tab' },
+  'NASDAQ':        { card: 'NASDAQ card',           chart: 'Chart 1 — NDX tab' },
+  'Dow Jones':     { card: 'Dow Jones card',        chart: 'Chart 1 — DOW tab' },
+  'VIX':           { card: 'VIX card',              chart: 'Chart 1 — VIX tab' },
+  '3-Mo T-Bill':   { card: 'Rates & Macro section', chart: 'Chart 2 — 3-MO tab' },
+  '10-Yr Treasury':{ card: 'Rates & Macro section', chart: 'Chart 2 — 10-YR tab' },
+  '30-Yr Treasury':{ card: 'Rates & Macro section', chart: 'Chart 2 — 30-YR tab' },
+  'USD Index':     { card: 'Rates & Macro section', chart: 'Chart 2 — DXY tab' },
+  'CPI':           { card: 'CPI card',              chart: null },
+  'Fed Funds Rate':{ card: 'Fed Funds Rate card',   chart: null },
+  'FOMC':          { card: 'Next FOMC Meeting card',chart: null },
+  'Gold Futures':  { card: 'Commodities section',   chart: 'Chart 3 — GOLD tab' },
+  'Brent Crude':   { card: 'Commodities section',   chart: 'Chart 3 — OIL tab' },
+  'Bitcoin':       { card: 'Digital Assets section',chart: 'Chart 3 — BTC tab' },
+  'Ethereum':      { card: 'Digital Assets section',chart: 'Chart 3 — ETH tab' },
+};
+
+let dictRendered = false;
+function renderDictionary() {
+  if (dictRendered) return;
+  dictRendered = true;
+  const list = document.getElementById('dictList');
+  list.innerHTML = '';
+  Object.keys(DEFINITIONS).forEach(key => {
+    const def = DEFINITIONS[key];
+    const loc = TERM_LOCATIONS[key] || {};
+    const tagParts = [];
+    if (loc.card) tagParts.push(loc.card);
+    if (loc.chart) tagParts.push(loc.chart);
+    const item = document.createElement('div');
+    item.className = 'dict-item';
+    item.dataset.key = key;
+    item.dataset.search = (def.title + ' ' + def.body).toLowerCase();
+    item.innerHTML =
+      '<div class="dict-item-header">' +
+        '<span class="dict-item-term">' + def.title + '</span>' +
+        (loc.card ? '<span class="dict-item-tag">' + loc.card + '</span>' : '') +
+      '</div>' +
+      '<div class="dict-item-body">' + def.body + '</div>' +
+      (def.formula ? '<div class="dict-item-formula">' + def.formula + '</div>' : '') +
+      (loc.chart ? '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:6px;letter-spacing:0.05em;">📊 ' + loc.chart + '</div>' : '') +
+      (def.tip ? '<div class="dict-item-expand">▸ Value Investor's Take</div><div class="dict-item-tip"><span class="dict-item-tip-label">Value Investor's Take</span>' + def.tip + '</div>' : '');
+    item.addEventListener('click', () => item.classList.toggle('expanded'));
+    list.appendChild(item);
   });
 }
 
+function filterDictionary(query) {
+  renderDictionary();
+  const q = query.toLowerCase().trim();
+  document.querySelectorAll('.dict-item').forEach(item => {
+    item.style.display = (!q || item.dataset.search.includes(q)) ? '' : 'none';
+  });
+}
 
 // ── Clock ──
 function updateClock() {
@@ -1923,7 +2097,10 @@ updateClock();
 
 // ── Ticker UI ──
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.tkpre').forEach(x => x.addEventListener('click', () => { loadTicker(x.dataset.h); }));
+  const tkSel = document.getElementById('tkSelect');
+  if (tkSel) {
+    tkSel.addEventListener('change', () => loadTicker(tkSel.value));
+  }
 
   attachDefinitions();
 
@@ -1958,9 +2135,32 @@ loadAllCharts();
 loadFedData();
 loadAllNews();
 loadTicker('federalreserve');
+  if(document.getElementById('tkSelect')) document.getElementById('tkSelect').value='federalreserve';
 setInterval(fetchAll, 60000);
 setInterval(loadAllCharts, 300000);
 setInterval(loadAllNews, 600000);
 </script>
+
+<!-- ── Dictionary Panel ── -->
+<button class="dict-fab" id="dictFab" onclick="toggleDictionary()">
+  <span class="dict-fab-icon">📖</span>
+  <span class="dict-fab-label">Dictionary</span>
+</button>
+
+<div class="dict-panel" id="dictPanel">
+  <div class="dict-panel-header">
+    <div class="dict-panel-title">
+      <span class="dict-panel-icon">◈</span>
+      Financial Dictionary
+    </div>
+    <button class="dict-panel-close" onclick="toggleDictionary()">✕</button>
+  </div>
+  <div class="dict-search-wrap">
+    <input class="dict-search" id="dictSearch" type="text" placeholder="Search terms..." oninput="filterDictionary(this.value)">
+  </div>
+  <div class="dict-list" id="dictList"></div>
+</div>
+<div class="dict-overlay" id="dictOverlay" onclick="toggleDictionary()"></div>
+
 </body>
 </html>
