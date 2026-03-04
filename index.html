@@ -1621,17 +1621,27 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   const ctx = document.getElementById(canvasId).getContext('2d');
   if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); delete chartInstances[canvasId]; }
   chartRawPoints[canvasId] = points;
-  // Crosshair hover events
+  // Crosshair + drag events
   const canvas = document.getElementById(canvasId);
+  canvas.addEventListener('mousedown', e => {
+    const chart = chartInstances[canvasId];
+    if (!chart) return;
+    chart._dragStart = e.offsetX; chart._dragEnd = null; chart._dragging = true;
+  });
   canvas.addEventListener('mousemove', e => {
     const chart = chartInstances[canvasId];
     if (!chart) return;
     chart._hoverX = e.offsetX;
+    if (chart._dragging) chart._dragEnd = e.offsetX;
     chart.draw();
+  });
+  canvas.addEventListener('mouseup', () => {
+    const chart = chartInstances[canvasId];
+    if (chart) chart._dragging = false;
   });
   canvas.addEventListener('mouseleave', () => {
     const chart = chartInstances[canvasId];
-    if (chart) { chart._hoverX = null; chart.draw(); }
+    if (chart) { chart._hoverX = null; chart._dragStart = null; chart._dragEnd = null; chart._dragging = false; chart.draw(); }
   });
   const first = points[0].y, last = points[points.length - 1].y;
   // Use live metadata prices for badge if available (1D), else use chart points
@@ -1644,21 +1654,36 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   const step = Math.max(1, Math.floor(points.length / 80));
   const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
   setPctBadge(chartNum, totalPct);
-  // Clean crosshair plugin
+  // Crosshair + drag highlight plugin
   const crosshairPlugin = {
     id: 'crosshair_' + canvasId,
     afterDraw(chart) {
-      if (chart._hoverX == null) return;
       const ctx2 = chart.ctx;
       const area = chart.chartArea;
       ctx2.save();
-      ctx2.strokeStyle = 'rgba(200,200,220,0.2)';
-      ctx2.lineWidth = 1;
-      ctx2.setLineDash([3, 4]);
-      ctx2.beginPath();
-      ctx2.moveTo(chart._hoverX, area.top);
-      ctx2.lineTo(chart._hoverX, area.bottom);
-      ctx2.stroke();
+      // Drag selection region
+      if (chart._dragStart != null && chart._dragEnd != null) {
+        const x1 = Math.min(chart._dragStart, chart._dragEnd);
+        const x2 = Math.max(chart._dragStart, chart._dragEnd);
+        ctx2.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx2.fillRect(x1, area.top, x2 - x1, area.bottom - area.top);
+        // Left and right edge lines only
+        ctx2.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx2.lineWidth = 1;
+        ctx2.setLineDash([]);
+        ctx2.beginPath(); ctx2.moveTo(x1, area.top); ctx2.lineTo(x1, area.bottom); ctx2.stroke();
+        ctx2.beginPath(); ctx2.moveTo(x2, area.top); ctx2.lineTo(x2, area.bottom); ctx2.stroke();
+      }
+      // Crosshair line
+      if (chart._hoverX != null) {
+        ctx2.strokeStyle = 'rgba(200,200,220,0.2)';
+        ctx2.lineWidth = 1;
+        ctx2.setLineDash([3, 4]);
+        ctx2.beginPath();
+        ctx2.moveTo(chart._hoverX, area.top);
+        ctx2.lineTo(chart._hoverX, area.bottom);
+        ctx2.stroke();
+      }
       ctx2.restore();
     }
   };
@@ -1667,8 +1692,7 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
     type: 'line',
     plugins: [crosshairPlugin],
     data: { labels: sampled.map(p => p.x), datasets: [
-      { data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor },
-      { data: sampled.map(() => first), borderColor: 'rgba(107,107,122,0.35)', borderWidth: 1, borderDash: [4,4], fill: false, pointRadius: 0, pointHoverRadius: 0, tension: 0 }
+      { data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor }
     ] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
