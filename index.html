@@ -1409,21 +1409,17 @@ function switchTab(tab) {
 // ── Greeting ──
 function setGreeting() {
   const hour = new Date().getHours();
-  const day = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-  const m = ["Good morning, bro.", "Rise and grind.", "Markets are open. Let's go.", "Morning. Coffee first, charts second.", "The tape waits for no one.", "Early bird. The market respects it."];
-  const a = ["Good afternoon, bro.", "Afternoon. How's the tape treating you?", "Midday check-in.", "Still at it. Respect.", "Good afternoon. Stay sharp.", "Eyes on the macro."];
-  const e = ["Good evening, bro.", "Markets are closed — time to reflect.", "Asia opens soon.", "The Fed never sleeps, but you should.", "Tomorrow's another day on the tape.", "Winding down? The futures don't."];
-  const n = ["You're up late.", "Burning the midnight oil?", "Late night macro session?", "Still at it. The futures market approves.", "Night owl mode. The Nikkei would agree.", "Tokyo opens in a few hours."];
-  let pool = hour >= 5 && hour < 12 ? m : hour >= 12 && hour < 17 ? a : hour >= 17 && hour < 21 ? e : n;
-  if (day === 'Monday' && hour >= 5 && hour < 12) pool = [...pool, "New week, new opportunities.", "Monday. Let's make it count."];
-  if (day === 'Friday' && hour >= 12 && hour < 17) pool = [...pool, "It's Friday. Finish strong.", "Last trading day of the week."];
-  const subs = [
-    day + ' · ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-    "Your personal market dashboard", day + ' · Markets at a glance',
-    "Stay sharp. Stay informed.", "Global markets · Live data"
-  ];
-  document.getElementById('greeting-text').textContent = pool[Math.floor(Math.random() * pool.length)];
-  document.getElementById('greeting-sub').textContent = subs[Math.floor(Math.random() * subs.length)];
+  const m = ["Let's FUCK!", "I'm jacked to the TITS!", "Be first, be smarter, or cheat."];
+  const a = ["We have to act now!", "Summer 2013 Cape Cod is calling...", "I work, my wife shops."];
+  const e = ["Where's the bag?", "Anyone got an adderall?", "God, I miss quaaludes."];
+  const n = ["\u00c7a va sans dire.", "Party like it's 2008.", "Seeking alpha I see..."];
+  let pool;
+  if (hour >= 5 && hour < 12) pool = m;
+  else if (hour >= 12 && hour < 17) pool = a;
+  else if (hour >= 17 && hour < 21) pool = e;
+  else pool = n;
+  const el = document.getElementById('greeting');
+  if (el) el.textContent = pool[Math.floor(Math.random() * pool.length)];
 }
 
 // ── Formatters ──
