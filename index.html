@@ -962,131 +962,108 @@
      ════════════════════════════════════════ */
   @media (max-width: 768px) {
 
-    /* ── Header ── */
+    /* ── Header: single clean row ── */
     header {
-      padding: 10px 16px;
-      flex-wrap: wrap;
-      gap: 8px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .logo { font-size: 11px; letter-spacing: 0.2em; }
-    .nav-tabs {
-      order: 3;
-      width: 100%;
-      gap: 0;
-      border-bottom: none;
-      background: rgba(255,255,255,0.03);
-      border-radius: 6px;
-      padding: 3px;
+      padding: 0 16px;
+      height: 48px;
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: nowrap;
+      gap: 0;
+    }
+    .logo { font-size: 10px; letter-spacing: 0.2em; flex-shrink: 0; }
+    .nav-tabs {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(10,10,11,0.97);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(20px);
+      display: flex;
+      z-index: 200;
+      padding: 0;
+      gap: 0;
     }
     .nav-tab {
       flex: 1;
-      text-align: center;
       font-size: 9px;
-      padding: 6px 4px;
-      letter-spacing: 0.08em;
-      border-radius: 4px;
+      padding: 10px 4px 12px;
+      letter-spacing: 0.06em;
+      border-radius: 0;
+      border-bottom: none;
+      border-top: 2px solid transparent;
+      text-align: center;
     }
     .nav-tab.active {
-      background: rgba(255,255,255,0.08);
+      border-top: 2px solid var(--accent);
+      color: var(--text);
     }
-    .header-right {
-      gap: 10px;
-      order: 2;
-    }
+    .header-right { gap: 8px; }
     .clock { display: none; }
-    .last-updated { font-size: 9px; }
+    .last-updated { display: none; }
     .refresh-btn { font-size: 10px; padding: 5px 10px; }
 
     /* ── Main layout ── */
-    main { padding: 12px; gap: 20px; }
-
-    /* ── Section headers ── */
-    .section-label {
-      font-size: 9px;
-      letter-spacing: 0.2em;
-      margin-bottom: 8px;
-    }
+    main { padding: 12px 12px 72px; gap: 24px; } /* bottom pad for nav */
 
     /* ── Cards ── */
     .grid-4 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
     .grid-3 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
     .grid-2 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
 
-    /* Rates section — 3 columns on mobile */
-    .grid-7 { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+    /* Rates — stack to 2 columns then wrap */
+    .grid-rates {
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 1px;
+    }
 
-    .card { padding: 12px 14px; }
+    .card { padding: 12px 12px; }
     .card-label {
       font-size: 8px;
-      letter-spacing: 0.08em;
-      margin-bottom: 6px;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
       line-height: 1.3;
       white-space: normal;
     }
-    .card-value { font-size: 22px; margin-bottom: 6px; }
+    .card-value { font-size: 20px; margin-bottom: 5px; }
     .card-change { font-size: 9px; padding: 2px 5px; }
     .card-pct { font-size: 9px; }
-    .card-sub { font-size: 9px; margin-top: 6px; line-height: 1.3; }
-
-    /* Hide the external link arrow on mobile */
+    .card-sub { font-size: 9px; margin-top: 5px; line-height: 1.3; }
     .card::after { display: none; }
 
     /* ── Charts ── */
-    .chart-header {
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 10px 12px 8px;
-    }
-    .chart-title-wrap { gap: 6px; }
-    .chart-label { font-size: 10px; }
-    .chart-badge { font-size: 10px; padding: 2px 6px; }
-    .chart-tabs { gap: 4px; }
-    .chart-tab { font-size: 9px; padding: 3px 6px; }
-    .chart-canvas-wrap { height: 160px; }
-
-    /* Range tabs */
-    .range-tabs {
+    .range-bar {
+      padding: 6px 12px;
       gap: 2px;
-      padding: 8px 12px;
-      flex-wrap: wrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      justify-content: flex-start;
     }
-    .range-tab { font-size: 9px; padding: 3px 6px; }
+    .range-tab { font-size: 9px; padding: 3px 8px; }
+    .chart-header { padding: 10px 12px 8px; flex-wrap: wrap; gap: 4px; }
+    .chart-label { font-size: 10px; }
+    .chart-badge { font-size: 10px; }
+    .chart-tabs { gap: 3px; }
+    .chart-tab { font-size: 9px; padding: 3px 7px; }
+    .chart-canvas-wrap { height: 160px; }
 
     /* ── News ── */
     .news-grid { grid-template-columns: 1fr; }
-    .news-panel-header { padding: 10px 14px; }
-    .news-source { font-size: 9px; }
-    .news-headline { font-size: 12px; }
-    .news-meta { font-size: 10px; }
+    .news-headline { font-size: 12px; line-height: 1.5; }
     .news-item { padding: 10px 14px; }
-    .sentiment-bar-wrap { padding: 6px 14px 8px; }
-    .sentiment-label { font-size: 9px; }
-    .sentiment-score { font-size: 9px; }
 
-    /* ── Dictionary FAB ── */
-    .dict-fab { bottom: 16px; right: 16px; padding: 8px 12px; }
+    /* ── Drag tooltip ── */
+    #drag-tooltip { font-size: 11px; padding: 5px 9px; }
+
+    /* ── Dictionary ── */
+    .dict-fab { bottom: 72px; right: 16px; padding: 8px 10px; }
     .dict-fab-label { display: none; }
     .dict-panel { width: 100%; right: -100%; }
-
-    /* ── Range bar ── */
-    .range-bar {
-      padding: 6px 12px;
-      justify-content: flex-start;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
   }
 
-  /* Extra small — single column everything */
   @media (max-width: 400px) {
-    .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
-    .card-value { font-size: 20px; }
+    .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); }
   }
-
 </style>
 </head>
 <body>
@@ -1155,7 +1132,7 @@
 
   <!-- RATES & MACRO -->
   <div class="section-label">Rates & Macro</div>
-  <div class="grid" style="grid-template-columns: repeat(7, 1fr);">
+  <div class="grid grid-rates" style="grid-template-columns: repeat(7, 1fr);">
     <a class="card neutral" id="card-tbill" href="https://finance.yahoo.com/quote/%5EIRX/" target="_blank">
       <div class="card-label">3-Mo T-Bill — Risk Free</div>
       <div class="card-value" id="tbill-price"><span class="loading-pulse"></span></div>
@@ -1782,6 +1759,8 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   canvas.addEventListener('mouseleave', () => {
     const chart = chartInstances[canvasId];
     if (chart) { chart._hoverX = null; chart._dragStart = null; chart._dragEnd = null; chart._dragging = false; chart.draw(); }
+    const tip = document.getElementById('drag-tooltip');
+    if (tip) tip.style.display = 'none';
   });
   // Touch support
   canvas.addEventListener('touchstart', e => {
@@ -1801,6 +1780,10 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
   canvas.addEventListener('touchend', () => {
     const chart = chartInstances[canvasId];
     if (chart) { chart._dragging = false; }
+    setTimeout(() => {
+      const tip = document.getElementById('drag-tooltip');
+      if (tip) tip.style.display = 'none';
+    }, 1800);
   });
   const first = points[0].y, last = points[points.length - 1].y;
   // Use live metadata prices for badge if available (1D), else use chart points
@@ -1844,33 +1827,54 @@ function renderChart(canvasId, points, label, livePrice, prevClose) {
       if (chart._dragStart != null && chart._dragEnd != null) {
         const x1 = Math.min(chart._dragStart, chart._dragEnd);
         const x2 = Math.max(chart._dragStart, chart._dragEnd);
-        if (x2 - x1 > 2) {
+        if (x2 - x1 > 4) {
           // Build a clipping path that follows the chart line from x1 to x2
           ctx2.beginPath();
-          // Start at bottom-left
           ctx2.moveTo(x1, area.bottom);
-          // Walk up to the line at x1
           ctx2.lineTo(x1, getLineY(x1));
-          // Trace the chart line across the selected range
           for (let i = 0; i < pts.length; i++) {
-            if (pts[i].x >= x1 && pts[i].x <= x2) {
-              ctx2.lineTo(pts[i].x, pts[i].y);
-            }
+            if (pts[i].x >= x1 && pts[i].x <= x2) ctx2.lineTo(pts[i].x, pts[i].y);
           }
-          // Down to bottom-right
           ctx2.lineTo(x2, getLineY(x2));
           ctx2.lineTo(x2, area.bottom);
           ctx2.closePath();
-          ctx2.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx2.fillStyle = 'rgba(255,255,255,0.07)';
           ctx2.fill();
 
           // Edge lines
           ctx2.setLineDash([]);
           ctx2.lineWidth = 1;
-          ctx2.strokeStyle = 'rgba(255,255,255,0.3)';
+          ctx2.strokeStyle = 'rgba(255,255,255,0.25)';
           ctx2.beginPath(); ctx2.moveTo(x1, getLineY(x1)); ctx2.lineTo(x1, area.bottom); ctx2.stroke();
           ctx2.beginPath(); ctx2.moveTo(x2, getLineY(x2)); ctx2.lineTo(x2, area.bottom); ctx2.stroke();
+
+          // % change tooltip
+          const yScale = chart.scales.y;
+          const v1 = yScale.getValueForPixel(getLineY(x1));
+          const v2 = yScale.getValueForPixel(getLineY(x2));
+          if (v1 && v2) {
+            const pct = ((v2 - v1) / Math.abs(v1)) * 100;
+            const sign = pct >= 0 ? '+' : '';
+            const tip = document.getElementById('drag-tooltip');
+            if (tip) {
+              tip.textContent = sign + pct.toFixed(2) + '%';
+              tip.style.color = pct >= 0 ? 'var(--green)' : 'var(--red)';
+              // Position above drag region center
+              const rect = canvas.getBoundingClientRect();
+              const cx = rect.left + (x1 + x2) / 2;
+              const ty = rect.top + area.top - 36;
+              tip.style.left = Math.max(8, cx - 40) + 'px';
+              tip.style.top = ty + 'px';
+              tip.style.display = 'block';
+            }
+          }
+        } else {
+          const tip = document.getElementById('drag-tooltip');
+          if (tip) tip.style.display = 'none';
         }
+      } else {
+        const tip = document.getElementById('drag-tooltip');
+        if (tip) tip.style.display = 'none';
       }
 
       // Crosshair line
@@ -2393,6 +2397,9 @@ setInterval(fetchAll, 60000);
 setInterval(loadAllCharts, 300000);
 setInterval(loadAllNews, 600000);
 </script>
+
+<!-- ── Drag Tooltip ── -->
+<div id="drag-tooltip" style="display:none;position:fixed;background:#1a1a20;border:1px solid var(--border-bright);border-radius:5px;padding:6px 10px;font-family:var(--mono);font-size:12px;pointer-events:none;z-index:800;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);"></div>
 
 <!-- ── Dictionary Panel ── -->
 <button class="dict-fab" id="dictFab" onclick="toggleDictionary()">
