@@ -9,6 +9,7 @@ let eqVolumePoints = [];
 export let eqCurrentSymbol = null;
 let eqCurrentRange = '1y', eqCurrentInterval = '1d';
 let eqChartType = 'line';
+let eqRangeChangeAmt = null, eqRangeChangePct = null;
 let watchlistGroups = [];
 
 // ── Watchlist Persistence ──
@@ -127,8 +128,8 @@ function renderDataPanel(v7, fund, chartMeta) {
   const prc = fund?.price || {};
   const sum = fund?.summaryDetail || {};
 
-  function metric(label, value, cls) {
-    return '<div class="eq-metric"><div class="eq-metric-label">' + label + '</div><div class="eq-metric-value' + (cls ? ' ' + cls : '') + '">' + (value != null ? value : '—') + '</div></div>';
+  function metric(label, value, cls, id) {
+    return '<div class="eq-metric"' + (id ? ' id="' + id + '"' : '') + '><div class="eq-metric-label">' + label + '</div><div class="eq-metric-value' + (cls ? ' ' + cls : '') + '">' + (value != null ? value : '—') + '</div></div>';
   }
   function section(title, metrics) {
     return '<div class="eq-data-section"><div class="eq-data-section-title">' + title + '</div><div class="eq-metrics-grid">' + metrics.join('') + '</div></div>';
@@ -161,15 +162,19 @@ function renderDataPanel(v7, fund, chartMeta) {
   const de = getRaw(fin.debtToEquity);
   const cr = getRaw(fin.currentRatio);
   const rev = getRaw(fin.totalRevenue);
-  const upDown = (change || 0) >= 0;
-  const changeStr = change != null
-    ? (upDown ? '+' : '') + change.toFixed(2) + ' (' + (upDown ? '+' : '') + ((changePct || 0) * 100).toFixed(2) + '%)'
+  const useRange = eqRangeChangeAmt != null;
+  const dispChange = useRange ? eqRangeChangeAmt : change;
+  const dispChangePct = useRange ? eqRangeChangePct : changePct;
+  const changeLabel = useRange ? 'Chg (' + eqCurrentRange + ')' : 'Change';
+  const upDown = (dispChange || 0) >= 0;
+  const changeStr = dispChange != null
+    ? (upDown ? '+' : '') + dispChange.toFixed(2) + ' (' + (upDown ? '+' : '') + ((dispChangePct || 0) * 100).toFixed(2) + '%)'
     : '—';
 
   el.innerHTML =
     section('Price & Market', [
       metric('Price', price != null ? '$' + price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'),
-      metric('Change', changeStr, upDown ? 'good' : 'bad'),
+      metric(changeLabel, changeStr, upDown ? 'good' : 'bad', 'eq-metric-change'),
       metric('Volume', fmtFinNum(vol)),
       metric('Avg Volume', fmtFinNum(avgVol)),
       metric('Market Cap', '$' + fmtFinNum(mktCap)),
@@ -213,6 +218,8 @@ function renderEqLineChart(points, livePrice, prevClose) {
   const badgeFirst = prevClose || first, badgeLast = livePrice || last;
   const totalPct = ((badgeLast - badgeFirst) / badgeFirst) * 100;
   const isUp = badgeLast >= badgeFirst;
+  eqRangeChangeAmt = badgeLast - badgeFirst;
+  eqRangeChangePct = totalPct / 100;
   const lineColor = isUp ? '#00d97e' : '#ff4d6a';
   const fillColor = isUp ? 'rgba(0,217,126,0.07)' : 'rgba(255,77,106,0.07)';
   const pctEl = document.getElementById('eq-chart-pct');
@@ -422,6 +429,11 @@ function renderEqCandleChart(ohlcPoints) {
   try { if (!Chart.registry.controllers.get('candlestick')) throw new Error('no candlestick'); } catch(e) { renderEqLineChart(eqLinePoints); return; }
   const ctx = canvas.getContext('2d');
   if (eqChartInstance) { eqChartInstance.destroy(); eqChartInstance = null; }
+  if (ohlcPoints.length > 0) {
+    const first = ohlcPoints[0].o, last = ohlcPoints[ohlcPoints.length - 1].c;
+    eqRangeChangeAmt = last - first;
+    eqRangeChangePct = first !== 0 ? (last - first) / first : 0;
+  }
   const step = Math.max(1, Math.floor(ohlcPoints.length / 200));
   const sampled = ohlcPoints.filter((_, i) => i % step === 0 || i === ohlcPoints.length - 1);
   const timeUnit = (eqCurrentInterval === '5m' || eqCurrentInterval === '30m') ? 'hour' : (eqCurrentInterval === '1wk') ? 'month' : 'day';
@@ -472,6 +484,7 @@ export function setEqChartType(type) {
 export async function loadEquityStock(symbol) {
   if (!symbol) return;
   eqCurrentSymbol = symbol;
+  eqRangeChangeAmt = null; eqRangeChangePct = null;
   const titleEl = document.getElementById('eq-chart-title');
   if (titleEl) titleEl.textContent = symbol;
   const headerEl = document.getElementById('eq-stock-header');
@@ -535,6 +548,19 @@ export async function loadEquityStock(symbol) {
   }, 500);
 }
 
+// ── Update Change metric in panel without full re-render ──
+function updatePanelChange() {
+  const el = document.getElementById('eq-metric-change');
+  if (!el || eqRangeChangeAmt == null) return;
+  const up = eqRangeChangeAmt >= 0;
+  const pct = (eqRangeChangePct || 0) * 100;
+  const str = (up ? '+' : '') + eqRangeChangeAmt.toFixed(2) + ' (' + (up ? '+' : '') + pct.toFixed(2) + '%)';
+  el.querySelector('.eq-metric-label').textContent = 'Chg (' + eqCurrentRange + ')';
+  const valEl = el.querySelector('.eq-metric-value');
+  valEl.textContent = str;
+  valEl.className = 'eq-metric-value ' + (up ? 'good' : 'bad');
+}
+
 // ── Equity Tab Init ──
 export function initEquity() {
   document.querySelectorAll('#eq-range-tabs .range-tab').forEach(btn => {
@@ -543,7 +569,7 @@ export function initEquity() {
       btn.classList.add('active');
       eqCurrentRange = btn.dataset.range;
       eqCurrentInterval = btn.dataset.interval;
-      if (eqCurrentSymbol) loadEqChart(eqCurrentSymbol, eqCurrentRange, eqCurrentInterval);
+      if (eqCurrentSymbol) loadEqChart(eqCurrentSymbol, eqCurrentRange, eqCurrentInterval).then(updatePanelChange);
     });
   });
 }
