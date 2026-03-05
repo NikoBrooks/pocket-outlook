@@ -3417,39 +3417,57 @@ async function loadEquityStock(symbol) {
   const headerEl = document.getElementById('eq-stock-header');
   if (headerEl) { headerEl.style.display = 'flex'; headerEl.innerHTML = '<span style="font-size:11px;color:var(--muted)">Loading ' + symbol + '...</span>'; }
   const dataEl = document.getElementById('eq-data-col');
-  if (dataEl) dataEl.innerHTML = '<div style="padding:40px 20px;font-size:10px;color:var(--muted);text-align:center">Loading fundamentals...</div>';
+  if (dataEl) dataEl.innerHTML = '<div style="padding:40px 20px;font-size:10px;color:var(--muted);text-align:center">Loading...</div>';
 
-  const [chartRes, v7Res, fundRes] = await Promise.allSettled([
-    loadEqChart(symbol, eqCurrentRange, eqCurrentInterval),
-    fetchYahooV7Quote(symbol),
-    fetchFundamentals(symbol)
-  ]);
+  // State shared across progressive renders
+  let _chartMeta = null, _v7 = null, _fund = null;
 
-  const chartResult = chartRes.status === 'fulfilled' ? chartRes.value : null;
-  const v7 = v7Res.status === 'fulfilled' ? v7Res.value : null;
-  const fund = fundRes.status === 'fulfilled' ? fundRes.value : null;
-  const chartMeta = chartResult?.meta || null;
-
-  // Build header — v7 preferred, fall back to chart meta (always available since chart loads)
-  const hPrice = v7?.regularMarketPrice ?? chartMeta?.regularMarketPrice;
-  const hPrev = chartMeta?.previousClose || chartMeta?.chartPreviousClose;
-  const hChange = v7?.regularMarketChange ?? (hPrice != null && hPrev != null ? hPrice - hPrev : null);
-  const hPct = v7?.regularMarketChangePercent ?? (hChange != null && hPrev ? hChange / hPrev : null);
-  const companyName = v7?.longName || v7?.shortName || chartMeta?.longName || chartMeta?.shortName || symbol;
-  const up = (hChange || 0) >= 0;
-  if (headerEl) {
-    headerEl.innerHTML =
-      '<div class="eq-stock-name">' + companyName + '</div>' +
-      '<div class="eq-stock-price">$' + (hPrice != null ? hPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : '—') + '</div>' +
-      '<span class="eq-stock-change ' + (up?'up':'down') + '">' + (up?'+':'') + (hChange||0).toFixed(2) + ' (' + (up?'+':'') + ((hPct||0)*100).toFixed(2) + '%)</span>';
+  function buildHeader(v7, chartMeta) {
+    const hPrice = v7?.regularMarketPrice ?? chartMeta?.regularMarketPrice;
+    const hPrev = chartMeta?.previousClose || chartMeta?.chartPreviousClose;
+    const hChange = v7?.regularMarketChange ?? (hPrice != null && hPrev != null ? hPrice - hPrev : null);
+    const hPct = v7?.regularMarketChangePercent ?? (hChange != null && hPrev ? hChange / hPrev : null);
+    const name = v7?.longName || v7?.shortName || chartMeta?.longName || chartMeta?.shortName || symbol;
+    const up = (hChange || 0) >= 0;
+    if (headerEl) {
+      headerEl.innerHTML =
+        '<div class="eq-stock-name">' + name + '</div>' +
+        '<div class="eq-stock-price">$' + (hPrice != null ? hPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : '—') + '</div>' +
+        '<span class="eq-stock-change ' + (up?'up':'down') + '">' + (up?'+':'') + (hChange||0).toFixed(2) + ' (' + (up?'+':'') + ((hPct||0)*100).toFixed(2) + '%)</span>';
+    }
   }
 
-  renderDataPanel(v7, fund, chartMeta);
-  // Update active state in watchlist
-  document.querySelectorAll('.eq-watch-item').forEach(el => {
-    const ticker = el.querySelector('.eq-watch-ticker')?.textContent;
-    el.classList.toggle('active', ticker === symbol);
-  });
+  // Fire all three in parallel — render progressively as each arrives
+  // Chart always works and gives us basic price/52wk/volume via meta
+  loadEqChart(symbol, eqCurrentRange, eqCurrentInterval)
+    .then(result => {
+      _chartMeta = result?.meta || null;
+      buildHeader(_v7, _chartMeta);
+      renderDataPanel(_v7, _fund, _chartMeta);
+    }).catch(() => {});
+
+  // v7 gives company name, change %, market cap, P/E etc.
+  fetchYahooV7Quote(symbol)
+    .then(result => {
+      _v7 = result;
+      buildHeader(_v7, _chartMeta);
+      renderDataPanel(_v7, _fund, _chartMeta);
+    }).catch(() => {});
+
+  // Fundamentals give margins, ROE, FCF etc. — may be slow or unavailable
+  fetchFundamentals(symbol)
+    .then(result => {
+      _fund = result;
+      renderDataPanel(_v7, _fund, _chartMeta);
+    }).catch(() => {});
+
+  // Update watchlist active state shortly after load
+  setTimeout(() => {
+    document.querySelectorAll('.eq-watch-item').forEach(el => {
+      const ticker = el.querySelector('.eq-watch-ticker')?.textContent;
+      el.classList.toggle('active', ticker === symbol);
+    });
+  }, 500);
 }
 
 </script>
