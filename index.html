@@ -1043,7 +1043,11 @@
   /* ── Equity Securities Tab ── */
   #tab-equity {
     display: flex;
-    margin: -32px;
+    margin-top: -32px;
+    margin-bottom: -32px;
+    position: relative;
+    left: calc(-32px - max(0px, (100vw - 1400px) / 2));
+    width: 100vw;
     min-height: calc(100vh - 70px);
     overflow: hidden;
   }
@@ -1234,10 +1238,10 @@
   /* ── Equity Content ── */
   .eq-content {
     flex: 1;
-    padding: 24px 28px;
+    padding: 16px 20px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
     overflow-x: hidden;
     overflow-y: auto;
     min-width: 0;
@@ -1311,8 +1315,8 @@
   /* ── Chart + Data Row ── */
   .eq-chart-data-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    grid-template-columns: 3fr 2fr;
+    gap: 10px;
     align-items: start;
   }
 
@@ -1320,7 +1324,7 @@
 
   .eq-chart-container {
     position: relative;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 4 / 3;
     width: 100%;
   }
   .eq-chart-container canvas {
@@ -1397,7 +1401,7 @@
 
   /* ── Equity Responsive ── */
   @media (max-width: 960px) {
-    #tab-equity { flex-direction: column; margin: -12px; min-height: unset; }
+    #tab-equity { flex-direction: column; position: static; width: auto; margin: -12px; min-height: unset; left: 0; }
     .eq-sidebar-left { width: 100%; min-width: unset; border-right: none; border-bottom: 1px solid var(--border); max-height: 200px; }
     .eq-chart-data-row { grid-template-columns: 1fr; }
     .eq-chart-container { aspect-ratio: 16 / 9; }
@@ -2950,9 +2954,33 @@ async function fetchYahooV7Quote(symbol) {
   return null;
 }
 
+let _yfCrumb = null;
+
+async function getYahooCrumb() {
+  if (_yfCrumb) return _yfCrumb;
+  const crumbUrl = 'https://query1.finance.yahoo.com/v1/test/getcrumb';
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(crumbUrl), { cache: 'no-store' });
+      if (!res.ok) continue;
+      const text = await res.text();
+      // Valid crumb is a short alphanumeric string, not JSON
+      if (text && text.length > 0 && text.length < 50 && !text.trim().startsWith('{')) {
+        _yfCrumb = text.trim();
+        return _yfCrumb;
+      }
+    } catch(e) {}
+  }
+  return null;
+}
+
 async function fetchFundamentals(symbol) {
   const modules = 'financialData,defaultKeyStatistics';
+  const crumb = await getYahooCrumb();
+  const crumbParam = crumb ? '&crumb=' + encodeURIComponent(crumb) : '';
   const yurls = [
+    'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false' + crumbParam,
+    'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false' + crumbParam,
     'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
     'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
   ];
@@ -3071,12 +3099,13 @@ async function fetchEqChartData(symbol, range, interval) {
   const quote = result.indicators.quote[0];
   const opens = quote.open || [], highs = quote.high || [], lows = quote.low || [], closes = quote.close || [];
   const isIntraday = interval === '5m' || interval === '30m';
+  const is1D = interval === '5m'; // Only filter to today for true 1-day view
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const linePoints = [], ohlcPoints = [];
   for (let i = 0; i < timestamps.length; i++) {
     const ts = timestamps[i] * 1000;
     const d = new Date(ts);
-    if (isIntraday && d < todayStart) continue;
+    if (is1D && d < todayStart) continue;
     if (closes[i] == null) continue;
     let label;
     if (isIntraday) label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -3087,9 +3116,9 @@ async function fetchEqChartData(symbol, range, interval) {
       ohlcPoints.push({ x: ts, o: opens[i], h: highs[i], l: lows[i], c: closes[i] });
     }
   }
-  const livePrice = isIntraday ? meta.regularMarketPrice : null;
-  const prevClose = isIntraday ? (meta.previousClose || meta.chartPreviousClose) : null;
-  if (isIntraday && livePrice && linePoints.length > 0) {
+  const livePrice = is1D ? meta.regularMarketPrice : null;
+  const prevClose = is1D ? (meta.previousClose || meta.chartPreviousClose) : null;
+  if (is1D && livePrice && linePoints.length > 0) {
     linePoints.push({ x: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }), y: livePrice });
   }
   return { linePoints, ohlcPoints, livePrice, prevClose };
@@ -3108,8 +3137,37 @@ function renderEqLineChart(points, livePrice, prevClose) {
   const fillColor = isUp ? 'rgba(0,217,126,0.07)' : 'rgba(255,77,106,0.07)';
   const pctEl = document.getElementById('eq-chart-pct');
   if (pctEl) { pctEl.textContent = (totalPct >= 0 ? '+' : '') + totalPct.toFixed(2) + '%'; pctEl.className = 'chart-pct-badge ' + (totalPct >= 0 ? 'up' : 'down'); }
-  const step = Math.max(1, Math.floor(points.length / 120));
-  const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+  const step = Math.max(1, Math.floor(points.length / 300));
+  const sampledIdx = [];
+  for (let i = 0; i < points.length; i++) { if (i % step === 0 || i === points.length - 1) sampledIdx.push(i); }
+  const sampled = sampledIdx.map(i => points[i]);
+
+  // EMA calculation on full dataset, then sample at same indices
+  function calcEMA(prices, period) {
+    const k = 2 / (period + 1);
+    const ema = new Array(prices.length).fill(null);
+    let prev = null, count = 0;
+    for (let i = 0; i < prices.length; i++) {
+      if (prices[i] == null) continue;
+      if (prev === null) {
+        count++;
+        if (count < period) continue;
+        // Seed with SMA of first `period` valid points
+        let sum = 0, n = 0;
+        for (let j = 0; j <= i; j++) { if (prices[j] != null) { sum += prices[j]; n++; } }
+        prev = sum / n;
+      } else {
+        prev = prices[i] * k + prev * (1 - k);
+      }
+      ema[i] = prev;
+    }
+    return ema;
+  }
+  const closes = points.map(p => p.y);
+  const ema12Full = calcEMA(closes, 12);
+  const ema26Full = calcEMA(closes, 26);
+  const sampledEma12 = sampledIdx.map(i => ema12Full[i]);
+  const sampledEma26 = sampledIdx.map(i => ema26Full[i]);
 
   // AbortController to avoid stacking duplicate listeners on re-renders
   if (window._eqChartAbort) window._eqChartAbort.abort();
@@ -3226,13 +3284,24 @@ function renderEqLineChart(points, livePrice, prevClose) {
     plugins: [crosshairPlugin],
     data: {
       labels: sampled.map(p => p.x),
-      datasets: [{ data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor }]
+      datasets: [
+        { label: 'Price', data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor, order: 3 },
+        { label: 'EMA 12', data: sampledEma12, borderColor: 'rgba(255,170,0,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, order: 1 },
+        { label: 'EMA 26', data: sampledEma26, borderColor: 'rgba(100,160,255,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, order: 2 }
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
       plugins: {
-        legend: { display: false },
-        tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10, callbacks: { label: item => ' $' + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) } },
+        legend: { display: true, position: 'top', align: 'end', labels: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, boxWidth: 20, boxHeight: 1, padding: 10, usePointStyle: false,
+          filter: item => item.text !== 'Price' } },
+        tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10,
+          callbacks: { label: item => {
+            if (item.raw == null) return null;
+            const prefix = item.dataset.label === 'Price' ? ' $' : ' ' + item.dataset.label + ': $';
+            return prefix + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          }}
+        },
         zoom: {
           zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
           limits: { x: { minRange: 2 } }
