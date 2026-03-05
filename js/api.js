@@ -1,0 +1,254 @@
+import { PROXIES, CHART_PROXIES, YAHOO, YAHOO2, FINNHUB, FK, RSS2JSON } from './config.js';
+import { fetchWithTimeout } from './utils.js';
+
+export async function fetchYahoo(symbol) {
+  const yahooUrls = [
+    YAHOO + symbol + '?range=1d&interval=1m',
+    YAHOO2 + symbol + '?range=1d&interval=1m',
+  ];
+  let data;
+  for (const proxy of PROXIES) {
+    for (const yurl of yahooUrls) {
+      if (data?.chart?.result?.[0]) break;
+      try {
+        const res = await fetch(proxy + encodeURIComponent(yurl + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), {cache: 'no-store'});
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j?.chart?.result?.[0]) { data = j; break; }
+      } catch(e) {}
+    }
+    if (data?.chart?.result?.[0]) break;
+  }
+  if (!data?.chart?.result?.[0]) throw new Error('No data for ' + symbol);
+  const meta = data.chart.result[0].meta;
+  const price = meta.regularMarketPrice;
+  const prev = meta.previousClose || meta.chartPreviousClose;
+  const change = price - prev;
+  const pct = (change / prev) * 100;
+  return { price, change, pct };
+}
+
+export async function fetchFinnhub(symbol) {
+  const url = FINNHUB + '/quote?symbol=' + symbol + '&token=' + FK;
+  const res = await fetch(url);
+  const d = await res.json();
+  if (!d || d.c == null) throw new Error('No Finnhub data for ' + symbol);
+  const price = d.c !== 0 ? d.c : d.pc;
+  return { price, change: d.d || 0, pct: d.dp || 0 };
+}
+
+// Finnhub fundamentals: direct API, no CORS proxy needed, much more reliable than Yahoo quoteSummary
+export async function fetchFinnhubFundamentals(symbol) {
+  try {
+    const [mRes, pRes] = await Promise.all([
+      fetchWithTimeout(FINNHUB + '/stock/metric?symbol=' + symbol + '&metric=all&token=' + FK, {}, 8000),
+      fetchWithTimeout(FINNHUB + '/stock/profile2?symbol=' + symbol + '&token=' + FK, {}, 8000)
+    ]);
+    const mj = mRes.ok ? await mRes.json() : null;
+    const pj = pRes.ok ? await pRes.json() : null;
+    const m = mj?.metric || {};
+    if (!Object.keys(m).length && !pj?.name) return null;
+
+    const mktCapRaw = ((m.marketCapitalization || pj?.marketCapitalization) || null);
+    const mktCap = mktCapRaw ? mktCapRaw * 1e6 : null;
+    const sharesOut = pj?.shareOutstanding ? pj.shareOutstanding * 1e6 : null;
+
+    return {
+      _profile: pj,
+      price: {
+        marketCap: mktCap,
+        sharesOutstanding: sharesOut,
+        trailingPE: m.peTTM ?? null,
+        priceToBook: m.pbAnnual ?? null,
+        epsTrailingTwelveMonths: m.epsBasicExclExtraItemsTTM ?? m.epsNormalizedAnnual ?? null,
+        beta: m.beta ?? null,
+        averageDailyVolume3Month: m['10DayAverageTradingVolume'] != null ? m['10DayAverageTradingVolume'] * 1e6 : null,
+      },
+      summaryDetail: {
+        fiftyTwoWeekHigh: m['52WeekHigh'] ?? null,
+        fiftyTwoWeekLow: m['52WeekLow'] ?? null,
+        trailingPE: m.peTTM ?? null,
+        beta: m.beta ?? null,
+        averageDailyVolume3Month: m['10DayAverageTradingVolume'] != null ? m['10DayAverageTradingVolume'] * 1e6 : null,
+      },
+      financialData: {
+        grossMargins: m.grossMarginTTM != null ? m.grossMarginTTM / 100 : null,
+        operatingMargins: m.operatingMarginTTM != null ? m.operatingMarginTTM / 100 : null,
+        profitMargins: m.netProfitMarginTTM != null ? m.netProfitMarginTTM / 100 : null,
+        returnOnEquity: m.roeTTM != null ? m.roeTTM / 100 : (m.roeRfy != null ? m.roeRfy / 100 : null),
+        returnOnAssets: m.roaTTM != null ? m.roaTTM / 100 : (m.roaRfy != null ? m.roaRfy / 100 : null),
+        debtToEquity: m['totalDebt/totalEquityAnnual'] != null ? m['totalDebt/totalEquityAnnual'] * 100 : null,
+        currentRatio: m.currentRatioAnnual ?? null,
+        freeCashflow: m.freeCashFlowTTM != null ? m.freeCashFlowTTM * 1e6 : (m.freeCashFlowAnnual != null ? m.freeCashFlowAnnual * 1e6 : null),
+        totalRevenue: m.revenueTTM != null ? m.revenueTTM * 1e6 : null,
+      },
+      defaultKeyStatistics: {
+        priceToSalesTrailing12Months: m.psTTM ?? null,
+        enterpriseToEbitda: m['ev/ebitda'] ?? null,
+      }
+    };
+  } catch(e) { return null; }
+}
+
+export async function fetchCrypto(id) {
+  const cgUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=' + id + '&vs_currencies=usd&include_24hr_change=true';
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(cgUrl));
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (!data[id]) continue;
+      const price = data[id].usd;
+      const pct = data[id].usd_24h_change;
+      return { price, change: price * (pct / 100), pct };
+    } catch(e) {}
+  }
+  throw new Error('Crypto fetch failed for ' + id);
+}
+
+export async function fetchChartData(symbol, range, interval) {
+  let data;
+  for (const proxy of CHART_PROXIES) {
+    for (const base of [YAHOO, YAHOO2]) {
+      if (data?.chart?.result?.[0]) break;
+      try {
+        const res = await fetch(proxy + encodeURIComponent(base + symbol + '?range=' + range + '&interval=' + interval + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), {cache: 'no-store'});
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j?.chart?.result?.[0]) { data = j; break; }
+      } catch(e) {}
+    }
+    if (data?.chart?.result?.[0]) break;
+  }
+  if (!data?.chart?.result?.[0]) throw new Error('No chart data');
+  const result = data.chart.result[0];
+  const meta = result.meta;
+  const timestamps = result.timestamp;
+  const closes = result.indicators.quote[0].close;
+  const points = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    if (closes[i] != null) {
+      const d = new Date(timestamps[i] * 1000);
+      let label;
+      if (interval === '5m' || interval === '30m') label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      else if (interval === '1wk') label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      else label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      points.push({ x: label, y: closes[i] });
+    }
+  }
+  let finalPoints = points;
+  const livePrice = (interval === '5m' || interval === '30m') ? meta.regularMarketPrice : null;
+  const prevClose = (interval === '5m' || interval === '30m') ? (meta.previousClose || meta.chartPreviousClose) : null;
+
+  if (interval === '5m' || interval === '30m') {
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const todayTimestamps = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (new Date(timestamps[i] * 1000) >= todayStart && closes[i] != null) {
+        todayTimestamps.push(i);
+      }
+    }
+    if (todayTimestamps.length > 5) {
+      finalPoints = todayTimestamps.map(i => {
+        const d = new Date(timestamps[i] * 1000);
+        const label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        return { x: label, y: closes[i] };
+      });
+    }
+    if (livePrice && finalPoints.length > 0) {
+      const nowLabel = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      finalPoints = [...finalPoints, { x: nowLabel, y: livePrice }];
+    }
+  }
+
+  return { points: finalPoints, livePrice, prevClose };
+}
+
+export async function fetchYahooV7Quote(symbol) {
+  const yurls = [
+    'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + symbol,
+    'https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + symbol,
+  ];
+  for (const proxy of [PROXIES[0], PROXIES[1]]) {
+    for (const yurl of yurls) {
+      try {
+        const res = await fetchWithTimeout(proxy + encodeURIComponent(yurl + '&_cb=' + Date.now()), { cache: 'no-store' }, 5000);
+        if (!res.ok) continue;
+        const j = await res.json();
+        const result = j?.quoteResponse?.result?.[0];
+        if (result) return result;
+      } catch(e) {}
+    }
+  }
+  return null;
+}
+
+export async function fetchFundamentals(symbol) {
+  const modules = 'price,summaryDetail,financialData,defaultKeyStatistics';
+  const apiUrls = [
+    'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false&_cb=',
+    'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false&_cb=',
+    'https://query1.finance.yahoo.com/v11/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false&_cb=',
+    'https://query2.finance.yahoo.com/v11/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false&_cb=',
+  ];
+  for (const proxy of [PROXIES[0], PROXIES[1]]) {
+    for (const base of apiUrls) {
+      try {
+        const res = await fetchWithTimeout(proxy + encodeURIComponent(base + Date.now()), { cache: 'no-store' }, 5000);
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j?.quoteSummary?.result?.[0]) return j.quoteSummary.result[0];
+      } catch(e) {}
+    }
+  }
+  return null;
+}
+
+export async function fetchEqChartData(symbol, range, interval) {
+  let data;
+  for (const proxy of CHART_PROXIES) {
+    for (const base of [YAHOO, YAHOO2]) {
+      if (data?.chart?.result?.[0]) break;
+      try {
+        const res = await fetch(proxy + encodeURIComponent(base + symbol + '?range=' + range + '&interval=' + interval + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), { cache: 'no-store' });
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j?.chart?.result?.[0]) { data = j; break; }
+      } catch(e) {}
+    }
+    if (data?.chart?.result?.[0]) break;
+  }
+  if (!data?.chart?.result?.[0]) throw new Error('No chart data for ' + symbol);
+  const result = data.chart.result[0];
+  const meta = result.meta;
+  const timestamps = result.timestamp || [];
+  const quote = result.indicators.quote[0];
+  const opens = quote.open || [], highs = quote.high || [], lows = quote.low || [], closes = quote.close || [], volumes = quote.volume || [];
+  const isIntraday = interval === '5m' || interval === '30m';
+  const is1D = interval === '5m';
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const linePoints = [], ohlcPoints = [], volumePoints = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const ts = timestamps[i] * 1000;
+    const d = new Date(ts);
+    if (is1D && d < todayStart) continue;
+    if (closes[i] == null) continue;
+    let label;
+    if (isIntraday) label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    else if (interval === '1wk') label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    else label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const prevClose2 = i > 0 ? closes[i - 1] : closes[i];
+    linePoints.push({ x: label, y: closes[i] });
+    volumePoints.push({ x: label, y: volumes[i] || 0, up: closes[i] >= prevClose2 });
+    if (opens[i] != null && highs[i] != null && lows[i] != null) {
+      ohlcPoints.push({ x: ts, o: opens[i], h: highs[i], l: lows[i], c: closes[i] });
+    }
+  }
+  const livePrice = is1D ? meta.regularMarketPrice : null;
+  const prevClose = is1D ? (meta.previousClose || meta.chartPreviousClose) : null;
+  if (is1D && livePrice && linePoints.length > 0) {
+    linePoints.push({ x: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }), y: livePrice });
+    volumePoints.push({ x: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }), y: 0, up: true });
+  }
+  return { linePoints, ohlcPoints, volumePoints, livePrice, prevClose, meta };
+}
