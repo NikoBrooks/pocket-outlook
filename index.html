@@ -1039,6 +1039,355 @@
   @media (max-width: 400px) {
     .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); }
   }
+
+  /* ── Equity Securities Tab ── */
+  .equity-layout {
+    display: grid;
+    grid-template-columns: 240px 1fr 280px;
+    gap: 16px;
+    padding-top: 8px;
+  }
+
+  .eq-watchlist {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    height: fit-content;
+    max-height: calc(100vh - 180px);
+    overflow: hidden;
+  }
+
+  .eq-watch-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+  }
+
+  #eq-watch-list {
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .eq-watch-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 8px;
+  }
+  .eq-watch-item:last-child { border-bottom: none; }
+  .eq-watch-item:hover { background: rgba(255,255,255,0.03); }
+  .eq-watch-item.active { background: rgba(255,255,255,0.06); }
+
+  .eq-watch-left { flex: 1; min-width: 0; }
+  .eq-watch-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+  .eq-watch-ticker {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.06em;
+  }
+
+  .eq-watch-price {
+    font-size: 10px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .eq-watch-pct {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .eq-watch-pct.up   { background: var(--green-dim); color: var(--green); }
+  .eq-watch-pct.down { background: var(--red-dim);   color: var(--red); }
+
+  .eq-watch-remove {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 2px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .eq-watch-item:hover .eq-watch-remove { opacity: 1; }
+  .eq-watch-remove:hover { color: var(--red); }
+
+  .eq-watch-add {
+    display: flex;
+    padding: 10px 12px;
+    gap: 6px;
+    border-top: 1px solid var(--border);
+  }
+  .eq-watch-add input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 8px;
+    outline: none;
+    transition: border-color 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .eq-watch-add input:focus { border-color: var(--border-bright); }
+  .eq-watch-add input::placeholder { color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .eq-watch-add button {
+    background: none;
+    border: 1px solid var(--border-bright);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .eq-watch-add button:hover { border-color: var(--green); color: var(--green); }
+
+  .eq-main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .eq-search-wrap {
+    display: flex;
+    gap: 8px;
+  }
+  .eq-search-wrap input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    letter-spacing: 0.03em;
+  }
+  .eq-search-wrap input:focus { border-color: var(--border-bright); }
+  .eq-search-wrap input::placeholder { color: var(--muted); }
+  .eq-search-wrap button {
+    background: none;
+    border: 1px solid var(--border-bright);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .eq-search-wrap button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .eq-stock-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 0 2px;
+  }
+
+  .eq-stock-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+
+  .eq-stock-price {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+
+  .eq-stock-change {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .eq-stock-change.up   { background: var(--green-dim); color: var(--green); }
+  .eq-stock-change.down { background: var(--red-dim);   color: var(--red); }
+
+  .eq-chart-container {
+    position: relative;
+    aspect-ratio: 16 / 7;
+    max-height: 400px;
+  }
+  .eq-chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .eq-chart-type-toggle { display: flex; gap: 2px; }
+
+  .eq-sidebar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    height: fit-content;
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+  }
+
+  .eq-section-title {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .eq-info-grid {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 8px;
+  }
+
+  .eq-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  .eq-info-label { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+  .eq-info-value { font-size: 10px; color: var(--text); text-align: right; word-break: break-word; }
+
+  .eq-description {
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.55;
+    margin-top: 10px;
+    font-family: var(--sans);
+  }
+
+  .eq-ratio-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .eq-ratio-label { font-size: 10px; color: var(--muted); }
+  .eq-ratio-value { font-size: 10px; font-weight: 600; color: var(--text); }
+  .eq-ratio-value.good { color: var(--green); }
+  .eq-ratio-value.warn { color: #f0c040; }
+
+  /* ── Financial Statements ── */
+  .eq-financials {
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .fin-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .fin-tab-bar { display: flex; gap: 2px; }
+  .fin-tab {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+  }
+  .fin-tab:hover  { color: var(--text); background: rgba(255,255,255,0.04); }
+  .fin-tab.active { color: var(--text); font-weight: 600; background: rgba(255,255,255,0.07); }
+
+  .fin-period-toggle { display: flex; gap: 2px; }
+  .fin-period {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+  }
+  .fin-period:hover  { color: var(--text); background: rgba(255,255,255,0.04); }
+  .fin-period.active { color: var(--text); font-weight: 600; background: rgba(255,255,255,0.07); border: 1px solid var(--border-bright); }
+
+  .fin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .fin-table th {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: right;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    background: var(--surface);
+  }
+  .fin-table td {
+    padding: 9px 16px;
+    text-align: right;
+    color: var(--muted);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    white-space: nowrap;
+  }
+  .fin-table tr:last-child td { border-bottom: none; }
+  .fin-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── Equity Responsive ── */
+  @media (max-width: 1200px) {
+    .equity-layout { grid-template-columns: 200px 1fr 260px; }
+  }
+  @media (max-width: 960px) {
+    .equity-layout { grid-template-columns: 1fr; }
+    .eq-watchlist, .eq-sidebar { max-height: none; }
+    .eq-chart-container { aspect-ratio: 16 / 9; max-height: none; }
+  }
 </style>
 </head>
 <body>
@@ -1362,12 +1711,87 @@
 
   <!-- TAB: EQUITY SECURITIES -->
   <div id="tab-equity" class="tab-panel hidden">
-    <div class="wip-block">
-      <div class="wip-label">Equity Securities</div>
-      <div class="wip-text">Work in progress</div>
-      <div class="wip-sub">Individual equity tracking coming soon</div>
+
+    <!-- 3-col layout -->
+    <div class="equity-layout">
+
+      <!-- LEFT: Watchlist -->
+      <div class="eq-watchlist">
+        <div class="eq-watch-header">
+          <span class="eq-section-title" style="margin:0">Watchlist</span>
+        </div>
+        <div id="eq-watch-list"></div>
+        <div class="eq-watch-add">
+          <input id="eq-watch-input" placeholder="Add ticker..." onkeydown="if(event.key==='Enter')addToWatchlist()" />
+          <button onclick="addToWatchlist()">+</button>
+        </div>
+      </div>
+
+      <!-- CENTER: Main chart -->
+      <div class="eq-main">
+        <div class="eq-search-wrap">
+          <input id="eq-ticker-input" placeholder="Enter ticker (e.g. AAPL, MSFT, NVDA)..."
+                 onkeydown="if(event.key==='Enter') loadEquityStock(this.value.trim().toUpperCase())" />
+          <button onclick="loadEquityStock(document.getElementById('eq-ticker-input').value.trim().toUpperCase())">Analyze →</button>
+        </div>
+        <div id="eq-stock-header" class="eq-stock-header" style="display:none"></div>
+        <div class="chart-panel">
+          <div class="chart-header">
+            <div class="chart-title-row">
+              <div class="chart-title" id="eq-chart-title">—</div>
+              <span class="chart-pct-badge" id="eq-chart-pct">—</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <div class="eq-chart-type-toggle">
+                <button class="chart-tab active" id="eq-toggle-line" onclick="setEqChartType('line')">Line</button>
+                <button class="chart-tab" id="eq-toggle-candle" onclick="setEqChartType('candle')">Candle</button>
+              </div>
+              <div class="chart-tabs" id="eq-range-tabs">
+                <button class="range-tab" data-range="1d" data-interval="5m">1D</button>
+                <button class="range-tab" data-range="5d" data-interval="30m">1W</button>
+                <button class="range-tab" data-range="1mo" data-interval="1d">1M</button>
+                <button class="range-tab" data-range="6mo" data-interval="1d">6M</button>
+                <button class="range-tab active" data-range="1y" data-interval="1d">1Y</button>
+                <button class="range-tab" data-range="ytd" data-interval="1d">YTD</button>
+                <button class="range-tab" data-range="5y" data-interval="1wk">5Y</button>
+              </div>
+            </div>
+          </div>
+          <div class="eq-chart-container">
+            <canvas id="eq-chart"></canvas>
+            <div class="chart-loading" id="eq-chart-loading">Enter a ticker to load chart</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Info + Ratios -->
+      <div class="eq-sidebar">
+        <div id="eq-business-info">
+          <div class="eq-section-title">Company</div>
+          <div style="font-size:10px;color:var(--muted);padding:8px 0;line-height:1.6">Search for a stock to view company info and ratios.</div>
+        </div>
+        <div id="eq-ratios"></div>
+      </div>
+
+    </div><!-- /equity-layout -->
+
+    <!-- BOTTOM: Financial Statements -->
+    <div class="eq-financials" id="eq-financials" style="display:none">
+      <div class="fin-controls">
+        <div class="fin-tab-bar">
+          <button class="fin-tab active" onclick="showFinTab('income',this)">Income Statement</button>
+          <button class="fin-tab" onclick="showFinTab('balance',this)">Balance Sheet</button>
+          <button class="fin-tab" onclick="showFinTab('cashflow',this)">Cash Flow</button>
+        </div>
+        <div class="fin-period-toggle">
+          <button class="fin-period active" onclick="setFinPeriod('annual',this)">Annual</button>
+          <button class="fin-period" onclick="setFinPeriod('quarterly',this)">Quarterly</button>
+        </div>
+      </div>
+      <div id="fin-table-wrap"></div>
     </div>
-  </div>
+
+  </div><!-- /tab-equity -->
 
   <!-- TAB: DEBT SECURITIES -->
   <div id="tab-debt" class="tab-panel hidden">
@@ -1380,6 +1804,9 @@
 
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon/dist/chartjs-adapter-luxon.min.js"></script>
 <script>
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
 const FK = 'd6jikipr01qkvh5q2pugd6jikipr01qkvh5q2pv0';
@@ -1404,6 +1831,7 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.remove('hidden');
   event.target.classList.add('active');
+  if (tab === 'equity') renderWatchlist();
 }
 
 // ── Greeting ──
@@ -2346,13 +2774,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Range tabs ──
-  document.querySelectorAll('.range-tab').forEach(btn => {
+  // ── Range tabs (overview charts only) ──
+  document.querySelectorAll('.range-tabs .range-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.range-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.range-tabs .range-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentRange = btn.dataset.range; currentInterval = btn.dataset.interval;
       loadAllCharts(currentRange, currentInterval);
+    });
+  });
+
+  // ── Equity range tabs ──
+  document.querySelectorAll('#eq-range-tabs .range-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#eq-range-tabs .range-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      eqCurrentRange = btn.dataset.range;
+      eqCurrentInterval = btn.dataset.interval;
+      if (eqCurrentSymbol) loadEqChart(eqCurrentSymbol, eqCurrentRange, eqCurrentInterval);
     });
   });
 });
@@ -2367,6 +2806,437 @@ loadAllNews();
 setInterval(fetchAll, 60000);
 setInterval(loadAllCharts, 300000);
 setInterval(loadAllNews, 600000);
+
+// ── Equity Securities ──
+let eqChartInstance = null;
+let eqLinePoints = [];
+let eqOhlcPoints = [];
+let eqCurrentSymbol = null;
+let eqCurrentRange = '1y', eqCurrentInterval = '1d';
+let eqChartType = 'line';
+let finCurrentTab = 'income', finCurrentPeriod = 'annual';
+let finData = {};
+let watchlist = JSON.parse(localStorage.getItem('eq-watchlist') || '["AAPL","MSFT","NVDA"]');
+
+function saveWatchlist() {
+  localStorage.setItem('eq-watchlist', JSON.stringify(watchlist));
+}
+
+function addToWatchlist() {
+  const input = document.getElementById('eq-watch-input');
+  const sym = (input.value || '').trim().toUpperCase().replace(/[^A-Z0-9.\-^]/g, '');
+  if (!sym || sym.length > 8) return;
+  if (!watchlist.includes(sym)) { watchlist.push(sym); saveWatchlist(); }
+  input.value = '';
+  renderWatchlist();
+}
+
+function removeFromWatchlist(symbol) {
+  const idx = watchlist.indexOf(symbol);
+  if (idx !== -1) { watchlist.splice(idx, 1); saveWatchlist(); renderWatchlist(); }
+}
+
+async function renderWatchlist() {
+  const container = document.getElementById('eq-watch-list');
+  if (!container) return;
+  if (!watchlist.length) {
+    container.innerHTML = '<div style="padding:14px 16px;font-size:10px;color:var(--muted)">No stocks in watchlist.</div>';
+    return;
+  }
+  container.innerHTML = '<div style="padding:12px 16px;font-size:10px;color:var(--muted);letter-spacing:0.08em">Loading...</div>';
+  const rows = await Promise.all(watchlist.map(async sym => {
+    try { const d = await fetchYahoo(sym); return { sym, price: d.price, change: d.change, pct: d.pct, ok: true }; }
+    catch(e) { return { sym, ok: false }; }
+  }));
+  container.innerHTML = '';
+  rows.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'eq-watch-item' + (eqCurrentSymbol === r.sym ? ' active' : '');
+    div.onclick = () => { document.getElementById('eq-ticker-input').value = r.sym; loadEquityStock(r.sym); };
+    const up = r.ok && r.change >= 0;
+    div.innerHTML =
+      '<div class="eq-watch-left"><div class="eq-watch-ticker">' + r.sym + '</div></div>' +
+      '<div class="eq-watch-right">' +
+        (r.ok
+          ? '<div class="eq-watch-price">$' + r.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>' +
+            '<div class="eq-watch-pct ' + (up?'up':'down') + '">' + (up?'+':'') + r.pct.toFixed(2) + '%</div>'
+          : '<div class="eq-watch-price" style="color:var(--muted)">—</div>') +
+        '<button class="eq-watch-remove" onclick="event.stopPropagation();removeFromWatchlist(\'' + r.sym + '\')" title="Remove">×</button>' +
+      '</div>';
+    container.appendChild(div);
+  });
+}
+
+function fmtFinNum(n) {
+  if (n == null || isNaN(n)) return '—';
+  const abs = Math.abs(n), sign = n < 0 ? '-' : '';
+  if (abs >= 1e12) return sign + (abs / 1e12).toFixed(2) + 'T';
+  if (abs >= 1e9)  return sign + (abs / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6)  return sign + (abs / 1e6).toFixed(2) + 'M';
+  if (abs >= 1e3)  return sign + (abs / 1e3).toFixed(1) + 'K';
+  return n.toFixed(2);
+}
+
+function fmtPct(n) {
+  if (n == null || isNaN(n)) return '—';
+  return (n * 100).toFixed(2) + '%';
+}
+
+async function fetchQuoteSummary(symbol) {
+  const modules = [
+    'assetProfile','defaultKeyStatistics','financialData','price',
+    'incomeStatementHistory','incomeStatementHistoryQuarterly',
+    'balanceSheetHistory','balanceSheetHistoryQuarterly',
+    'cashflowStatementHistory','cashflowStatementHistoryQuarterly',
+  ].join(',');
+  const yurls = [
+    'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
+    'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
+  ];
+  for (const proxy of PROXIES) {
+    for (const yurl of yurls) {
+      try {
+        const res = await fetch(proxy + encodeURIComponent(yurl + '&_cb=' + Date.now()), { cache: 'no-store' });
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j?.quoteSummary?.result?.[0]) return j.quoteSummary.result[0];
+      } catch(e) {}
+    }
+  }
+  throw new Error('QuoteSummary failed for ' + symbol);
+}
+
+function renderBusinessInfo(data) {
+  const el = document.getElementById('eq-business-info');
+  if (!el) return;
+  const profile = data.assetProfile || {};
+  const stats = data.defaultKeyStatistics || {};
+  const price = data.price || {};
+  const marketCap = stats.marketCap?.raw || price.marketCap?.raw;
+  el.innerHTML =
+    '<div class="eq-section-title">Company</div>' +
+    '<div class="eq-info-grid">' +
+      '<div class="eq-info-row"><span class="eq-info-label">Sector</span><span class="eq-info-value">' + (profile.sector || '—') + '</span></div>' +
+      '<div class="eq-info-row"><span class="eq-info-label">Industry</span><span class="eq-info-value">' + (profile.industry || '—') + '</span></div>' +
+      '<div class="eq-info-row"><span class="eq-info-label">Market Cap</span><span class="eq-info-value">$' + fmtFinNum(marketCap) + '</span></div>' +
+      '<div class="eq-info-row"><span class="eq-info-label">Exchange</span><span class="eq-info-value">' + (price.exchangeName || '—') + '</span></div>' +
+      '<div class="eq-info-row"><span class="eq-info-label">Country</span><span class="eq-info-value">' + (profile.country || '—') + '</span></div>' +
+      '<div class="eq-info-row"><span class="eq-info-label">Employees</span><span class="eq-info-value">' + (profile.fullTimeEmployees ? profile.fullTimeEmployees.toLocaleString() : '—') + '</span></div>' +
+    '</div>' +
+    (profile.longBusinessSummary
+      ? '<div class="eq-description">' + profile.longBusinessSummary.substring(0, 300) + (profile.longBusinessSummary.length > 300 ? '...' : '') + '</div>'
+      : '');
+}
+
+function renderRatios(data) {
+  const el = document.getElementById('eq-ratios');
+  if (!el) return;
+  const stats = data.defaultKeyStatistics || {};
+  const fin = data.financialData || {};
+  function row(label, rawVal, fmtFn, goodFn) {
+    if (rawVal == null || isNaN(rawVal)) return '<div class="eq-ratio-row"><span class="eq-ratio-label">' + label + '</span><span class="eq-ratio-value">—</span></div>';
+    const val = fmtFn(rawVal);
+    const cls = goodFn ? (goodFn(rawVal) ? 'good' : 'warn') : '';
+    return '<div class="eq-ratio-row"><span class="eq-ratio-label">' + label + '</span><span class="eq-ratio-value ' + cls + '">' + val + '</span></div>';
+  }
+  el.innerHTML =
+    '<div class="eq-section-title" style="margin-top:16px">Valuation</div>' +
+    row('Trailing P/E',  stats.trailingPE?.raw,  v => fmt(v) + 'x', v => v > 0 && v < 25) +
+    row('Forward P/E',   stats.forwardPE?.raw,   v => fmt(v) + 'x', v => v > 0 && v < 20) +
+    row('Price / Book',  stats.priceToBook?.raw,  v => fmt(v) + 'x', v => v > 0 && v < 3) +
+    row('Price / Sales', stats.priceToSalesTrailing12Months?.raw, v => fmt(v) + 'x', v => v > 0 && v < 5) +
+    row('EV / EBITDA',   stats.enterpriseToEbitda?.raw,  v => fmt(v) + 'x', v => v > 0 && v < 15) +
+    row('EV / Revenue',  stats.enterpriseToRevenue?.raw, v => fmt(v) + 'x', v => v > 0 && v < 5) +
+    '<div class="eq-section-title" style="margin-top:12px">Fundamentals</div>' +
+    row('ROE',          fin.returnOnEquity?.raw,   fmtPct, v => v > 0.15) +
+    row('ROA',          fin.returnOnAssets?.raw,   fmtPct, v => v > 0.05) +
+    row('Gross Margin', fin.grossMargins?.raw,     fmtPct, v => v > 0.40) +
+    row('Net Margin',   fin.profitMargins?.raw,    fmtPct, v => v > 0.10) +
+    row('Op Margin',    fin.operatingMargins?.raw, fmtPct, v => v > 0.15) +
+    row('Debt / Equity',fin.debtToEquity?.raw,     v => fmt(v / 100) + 'x', v => (v / 100) < 1) +
+    row('Current Ratio',fin.currentRatio?.raw,     v => fmt(v) + 'x', v => v > 1.5) +
+    '<div class="eq-section-title" style="margin-top:12px">Other</div>' +
+    row('EPS (TTM)',  stats.trailingEps?.raw,      v => '$' + fmt(v),  null) +
+    row('Beta',       stats.beta?.raw,              v => fmt(v),        v => v < 1.5) +
+    row('52W High',   stats.fiftyTwoWeekHigh?.raw,  v => '$' + fmt(v),  null) +
+    row('52W Low',    stats.fiftyTwoWeekLow?.raw,   v => '$' + fmt(v),  null);
+}
+
+async function fetchEqChartData(symbol, range, interval) {
+  let data;
+  for (const proxy of CHART_PROXIES) {
+    for (const base of [YAHOO, YAHOO2]) {
+      if (data?.chart?.result?.[0]) break;
+      try {
+        const res = await fetch(proxy + encodeURIComponent(base + symbol + '?range=' + range + '&interval=' + interval + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), { cache: 'no-store' });
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j?.chart?.result?.[0]) { data = j; break; }
+      } catch(e) {}
+    }
+    if (data?.chart?.result?.[0]) break;
+  }
+  if (!data?.chart?.result?.[0]) throw new Error('No chart data for ' + symbol);
+  const result = data.chart.result[0];
+  const meta = result.meta;
+  const timestamps = result.timestamp || [];
+  const quote = result.indicators.quote[0];
+  const opens = quote.open || [], highs = quote.high || [], lows = quote.low || [], closes = quote.close || [];
+  const isIntraday = interval === '5m' || interval === '30m';
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const linePoints = [], ohlcPoints = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const ts = timestamps[i] * 1000;
+    const d = new Date(ts);
+    if (isIntraday && d < todayStart) continue;
+    if (closes[i] == null) continue;
+    let label;
+    if (isIntraday) label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    else if (interval === '1wk') label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    else label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    linePoints.push({ x: label, y: closes[i] });
+    if (opens[i] != null && highs[i] != null && lows[i] != null) {
+      ohlcPoints.push({ x: ts, o: opens[i], h: highs[i], l: lows[i], c: closes[i] });
+    }
+  }
+  const livePrice = isIntraday ? meta.regularMarketPrice : null;
+  const prevClose = isIntraday ? (meta.previousClose || meta.chartPreviousClose) : null;
+  if (isIntraday && livePrice && linePoints.length > 0) {
+    linePoints.push({ x: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }), y: livePrice });
+  }
+  return { linePoints, ohlcPoints, livePrice, prevClose };
+}
+
+function renderEqLineChart(points, livePrice, prevClose) {
+  const canvas = document.getElementById('eq-chart');
+  if (!canvas || !points || !points.length) return;
+  const ctx = canvas.getContext('2d');
+  if (eqChartInstance) { eqChartInstance.destroy(); eqChartInstance = null; }
+  const first = points[0].y, last = points[points.length - 1].y;
+  const badgeFirst = prevClose || first, badgeLast = livePrice || last;
+  const totalPct = ((badgeLast - badgeFirst) / badgeFirst) * 100;
+  const isUp = badgeLast >= badgeFirst;
+  const lineColor = isUp ? '#00d97e' : '#ff4d6a';
+  const fillColor = isUp ? 'rgba(0,217,126,0.07)' : 'rgba(255,77,106,0.07)';
+  const pctEl = document.getElementById('eq-chart-pct');
+  if (pctEl) { pctEl.textContent = (totalPct >= 0 ? '+' : '') + totalPct.toFixed(2) + '%'; pctEl.className = 'chart-pct-badge ' + (totalPct >= 0 ? 'up' : 'down'); }
+  const step = Math.max(1, Math.floor(points.length / 120));
+  const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+  eqChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: sampled.map(p => p.x),
+      datasets: [{ data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10, callbacks: { label: item => ' $' + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) } }
+      },
+      scales: {
+        x: { ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
+        y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 5, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } }
+      }
+    }
+  });
+}
+
+function renderEqCandleChart(ohlcPoints) {
+  const canvas = document.getElementById('eq-chart');
+  if (!canvas || !ohlcPoints || !ohlcPoints.length) return;
+  // Graceful fallback if the candlestick controller didn't load
+  try { if (!Chart.registry.controllers.get('candlestick')) throw new Error('no candlestick'); } catch(e) { renderEqLineChart(eqLinePoints); return; }
+  const ctx = canvas.getContext('2d');
+  if (eqChartInstance) { eqChartInstance.destroy(); eqChartInstance = null; }
+  const step = Math.max(1, Math.floor(ohlcPoints.length / 200));
+  const sampled = ohlcPoints.filter((_, i) => i % step === 0 || i === ohlcPoints.length - 1);
+  const timeUnit = (eqCurrentInterval === '5m' || eqCurrentInterval === '30m') ? 'hour' : (eqCurrentInterval === '1wk') ? 'month' : 'day';
+  eqChartInstance = new Chart(ctx, {
+    type: 'candlestick',
+    data: { datasets: [{ label: eqCurrentSymbol || '', data: sampled, color: { up: '#00d97e', down: '#ff4d6a', unchanged: '#6b6b7a' } }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 10 }, callbacks: { label: ctx => { const d = ctx.raw; if (!d) return ''; return ['O: $' + (d.o||0).toFixed(2) + '   H: $' + (d.h||0).toFixed(2), 'L: $' + (d.l||0).toFixed(2) + '   C: $' + (d.c||0).toFixed(2)]; } } }
+      },
+      scales: {
+        x: { type: 'time', time: { unit: timeUnit, displayFormats: { hour: 'h:mm a', day: 'MMM d', month: 'MMM yy' } }, ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
+        y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 6, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } }
+      }
+    }
+  });
+}
+
+async function loadEqChart(symbol, range, interval) {
+  const loadingEl = document.getElementById('eq-chart-loading');
+  if (loadingEl) { loadingEl.style.display = 'flex'; loadingEl.textContent = 'Loading chart...'; }
+  try {
+    const result = await fetchEqChartData(symbol, range, interval);
+    eqLinePoints = result.linePoints;
+    eqOhlcPoints = result.ohlcPoints;
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (eqChartType === 'candle') renderEqCandleChart(eqOhlcPoints);
+    else renderEqLineChart(eqLinePoints, result.livePrice, result.prevClose);
+  } catch(e) {
+    if (loadingEl) { loadingEl.style.display = 'flex'; loadingEl.textContent = 'Chart unavailable'; }
+  }
+}
+
+function setEqChartType(type) {
+  eqChartType = type;
+  document.getElementById('eq-toggle-line').classList.toggle('active', type === 'line');
+  document.getElementById('eq-toggle-candle').classList.toggle('active', type === 'candle');
+  if (type === 'candle' && eqOhlcPoints.length) renderEqCandleChart(eqOhlcPoints);
+  else if (type === 'line' && eqLinePoints.length) renderEqLineChart(eqLinePoints);
+  else if (eqCurrentSymbol) loadEqChart(eqCurrentSymbol, eqCurrentRange, eqCurrentInterval);
+}
+
+async function loadEquityStock(symbol) {
+  if (!symbol) return;
+  eqCurrentSymbol = symbol;
+  const titleEl = document.getElementById('eq-chart-title');
+  if (titleEl) titleEl.textContent = symbol;
+  const bizEl = document.getElementById('eq-business-info');
+  const ratioEl = document.getElementById('eq-ratios');
+  if (bizEl) bizEl.innerHTML = '<div class="eq-section-title">Company</div><div style="padding:8px 0;font-size:10px;color:var(--muted)">Loading...</div>';
+  if (ratioEl) ratioEl.innerHTML = '';
+  const headerEl = document.getElementById('eq-stock-header');
+  if (headerEl) { headerEl.style.display = 'flex'; headerEl.innerHTML = '<span style="font-size:11px;color:var(--muted)">Loading ' + symbol + '...</span>'; }
+
+  const [, summaryResult] = await Promise.allSettled([
+    loadEqChart(symbol, eqCurrentRange, eqCurrentInterval),
+    fetchQuoteSummary(symbol)
+  ]);
+
+  if (summaryResult.status === 'fulfilled') {
+    const data = summaryResult.value;
+    const price = data.price || {};
+    const currentPrice = price.regularMarketPrice?.raw;
+    const change = price.regularMarketChange?.raw;
+    const changePct = price.regularMarketChangePercent?.raw;
+    const companyName = price.longName || price.shortName || symbol;
+    const up = (change || 0) >= 0;
+    if (headerEl) {
+      headerEl.innerHTML =
+        '<div class="eq-stock-name">' + companyName + '</div>' +
+        '<div class="eq-stock-price">$' + (currentPrice != null ? currentPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : '—') + '</div>' +
+        '<span class="eq-stock-change ' + (up?'up':'down') + '">' + (up?'+':'') + (change||0).toFixed(2) + ' (' + (up?'+':'') + ((changePct||0)*100).toFixed(2) + '%)</span>';
+    }
+    finData = {
+      incomeAnnual:    data.incomeStatementHistory?.incomeStatementHistory || [],
+      incomeQuarterly: data.incomeStatementHistoryQuarterly?.incomeStatementHistory || [],
+      balanceAnnual:   data.balanceSheetHistory?.balanceSheetStatements || [],
+      balanceQuarterly:data.balanceSheetHistoryQuarterly?.balanceSheetStatements || [],
+      cashAnnual:      data.cashflowStatementHistory?.cashflowStatements || [],
+      cashQuarterly:   data.cashflowStatementHistoryQuarterly?.cashflowStatements || [],
+    };
+    renderBusinessInfo(data);
+    renderRatios(data);
+    const finEl = document.getElementById('eq-financials');
+    if (finEl) finEl.style.display = '';
+    renderFinTable();
+  } else {
+    if (bizEl) bizEl.innerHTML = '<div class="eq-section-title">Company</div><div style="padding:8px 0;font-size:10px;color:var(--red)">Data unavailable for ' + symbol + '.</div>';
+  }
+  // Update active state in watchlist
+  document.querySelectorAll('.eq-watch-item').forEach(el => {
+    const ticker = el.querySelector('.eq-watch-ticker')?.textContent;
+    el.classList.toggle('active', ticker === symbol);
+  });
+}
+
+// ── Financial Statements ──
+const FIN_INCOME_ROWS = [
+  { key: 'totalRevenue',    label: 'Total Revenue' },
+  { key: 'grossProfit',     label: 'Gross Profit' },
+  { key: 'operatingIncome', label: 'Operating Income' },
+  { key: 'ebitda',          label: 'EBITDA' },
+  { key: 'netIncome',       label: 'Net Income' },
+  { key: 'basicEPS',        label: 'EPS (Basic)' },
+  { key: 'dilutedEPS',      label: 'EPS (Diluted)' },
+];
+const FIN_BALANCE_ROWS = [
+  { key: 'totalAssets',            label: 'Total Assets' },
+  { key: 'totalLiab',              label: 'Total Liabilities' },
+  { key: 'totalStockholderEquity', label: "Shareholders' Equity" },
+  { key: 'cash',                   label: 'Cash & Equivalents' },
+  { key: 'longTermDebt',           label: 'Long-Term Debt' },
+  { key: 'goodWill',               label: 'Goodwill' },
+];
+const FIN_CASHFLOW_ROWS = [
+  { key: 'totalCashFromOperatingActivities',      label: 'Operating Cash Flow' },
+  { key: 'capitalExpenditures',                   label: 'Capital Expenditures' },
+  { key: 'freeCashflow',                          label: 'Free Cash Flow' },
+  { key: 'totalCashflowsFromInvestingActivities', label: 'Investing Activities' },
+  { key: 'totalCashFromFinancingActivities',      label: 'Financing Activities' },
+];
+
+function showFinTab(tab, btn) {
+  finCurrentTab = tab;
+  document.querySelectorAll('.fin-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderFinTable();
+}
+
+function setFinPeriod(period, btn) {
+  finCurrentPeriod = period;
+  document.querySelectorAll('.fin-period').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderFinTable();
+}
+
+function renderFinTable() {
+  const wrap = document.getElementById('fin-table-wrap');
+  if (!wrap) return;
+  let rows, statements;
+  if (finCurrentTab === 'income') {
+    rows = FIN_INCOME_ROWS;
+    statements = finCurrentPeriod === 'annual' ? finData.incomeAnnual : finData.incomeQuarterly;
+  } else if (finCurrentTab === 'balance') {
+    rows = FIN_BALANCE_ROWS;
+    statements = finCurrentPeriod === 'annual' ? finData.balanceAnnual : finData.balanceQuarterly;
+  } else {
+    rows = FIN_CASHFLOW_ROWS;
+    statements = finCurrentPeriod === 'annual' ? finData.cashAnnual : finData.cashQuarterly;
+  }
+  if (!statements || !statements.length) {
+    wrap.innerHTML = '<div style="padding:24px;font-size:11px;color:var(--muted);text-align:center;letter-spacing:0.06em">No data available.</div>';
+    return;
+  }
+  const sorted = [...statements].sort((a, b) => (a.endDate?.raw || 0) - (b.endDate?.raw || 0)).slice(-4);
+  const isEPS = key => key === 'basicEPS' || key === 'dilutedEPS';
+  function fmtCell(s, key) {
+    const val = s[key]?.raw;
+    if (val == null) return '—';
+    if (isEPS(key)) return '$' + val.toFixed(2);
+    return '$' + fmtFinNum(val);
+  }
+  function cellStyle(s, key) {
+    const val = s[key]?.raw;
+    if (val == null) return '';
+    if (key === 'totalLiab' || key === 'longTermDebt' || key === 'goodWill') return '';
+    if (key === 'capitalExpenditures') return val < 0 ? 'color:var(--muted)' : 'color:var(--red)';
+    return val >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+  }
+  const cols = sorted.map(s => s.endDate?.fmt || '—');
+  wrap.innerHTML =
+    '<div style="overflow-x:auto"><table class="fin-table">' +
+      '<thead><tr>' +
+        '<th style="text-align:left;min-width:180px">Metric</th>' +
+        cols.map(c => '<th>' + c + '</th>').join('') +
+      '</tr></thead>' +
+      '<tbody>' +
+        rows.map(r =>
+          '<tr>' +
+            '<td style="text-align:left;color:var(--text)">' + r.label + '</td>' +
+            sorted.map(s => '<td style="' + cellStyle(s, r.key) + '">' + fmtCell(s, r.key) + '</td>').join('') +
+          '</tr>'
+        ).join('') +
+      '</tbody>' +
+    '</table></div>';
+}
 </script>
 
 <!-- ── Drag Tooltip ── -->
