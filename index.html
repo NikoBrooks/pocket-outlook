@@ -575,7 +575,7 @@
 
   /* ── Tab Panels ── */
   .tab-panel { display: block; }
-  .tab-panel.hidden { display: none; }
+  .tab-panel.hidden { display: none !important; }
 
   /* ── WIP ── */
   .wip-block {
@@ -2971,14 +2971,20 @@ async function fetchYahooV7Quote(symbol) {
 }
 
 async function fetchFundamentals(symbol) {
-  // Strategy 1: Try v10 quoteSummary directly (works occasionally)
   const modules = 'financialData,defaultKeyStatistics';
-  const yurls = [
+
+  // Strategy 1: Try v11 (newer, sometimes works without auth)
+  // Strategy 2: Try v10 with/without formatted=false
+  const apiUrls = [
+    'https://query1.finance.yahoo.com/v11/finance/quoteSummary/' + symbol + '?modules=' + modules,
+    'https://query2.finance.yahoo.com/v11/finance/quoteSummary/' + symbol + '?modules=' + modules,
+    'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
+    'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
     'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false',
     'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false',
   ];
   for (const proxy of PROXIES) {
-    for (const yurl of yurls) {
+    for (const yurl of apiUrls) {
       try {
         const res = await fetch(proxy + encodeURIComponent(yurl + '&_cb=' + Date.now()), { cache: 'no-store' });
         if (!res.ok) continue;
@@ -2988,45 +2994,78 @@ async function fetchFundamentals(symbol) {
     }
   }
 
-  // Strategy 2: Scrape fundamentals from Yahoo Finance quote page HTML via regex
+  // Strategy 3: Scrape Yahoo Finance page HTML and extract embedded JSON
+  // Yahoo embeds financial data in __NEXT_DATA__ or as raw JSON in page scripts
+  function xRaw(html, key) {
+    // Match {"raw": N} format
+    let m = html.match(new RegExp('"' + key + '":\\{"raw":([0-9.e+\\-]+)'));
+    if (m) return parseFloat(m[1]);
+    // Match bare numeric format (newer Yahoo structure)
+    m = html.match(new RegExp('"' + key + '"\\s*:\\s*([0-9.e+\\-]+)(?=[,}])'));
+    return m ? parseFloat(m[1]) : null;
+  }
+  function buildResult(html) {
+    const grossM = xRaw(html, 'grossMargins');
+    const profitM = xRaw(html, 'profitMargins');
+    const opM = xRaw(html, 'operatingMargins');
+    const roe = xRaw(html, 'returnOnEquity');
+    const roa = xRaw(html, 'returnOnAssets');
+    if (grossM == null && profitM == null && roe == null) return null;
+    return {
+      financialData: {
+        grossMargins: { raw: grossM },
+        operatingMargins: { raw: opM },
+        profitMargins: { raw: profitM },
+        returnOnEquity: { raw: roe },
+        returnOnAssets: { raw: roa },
+        debtToEquity: { raw: xRaw(html, 'debtToEquity') },
+        currentRatio: { raw: xRaw(html, 'currentRatio') },
+        freeCashflow: { raw: xRaw(html, 'freeCashflow') },
+        totalRevenue: { raw: xRaw(html, 'totalRevenue') },
+      },
+      defaultKeyStatistics: {
+        priceToSalesTrailing12Months: { raw: xRaw(html, 'priceToSalesTrailing12Months') },
+        enterpriseToEbitda: { raw: xRaw(html, 'enterpriseToEbitda') },
+        enterpriseToRevenue: { raw: xRaw(html, 'enterpriseToRevenue') },
+      }
+    };
+  }
   const pageUrls = [
     'https://finance.yahoo.com/quote/' + symbol + '/financials/',
     'https://finance.yahoo.com/quote/' + symbol + '/',
+    'https://finance.yahoo.com/quote/' + symbol + '/key-statistics/',
   ];
-  function extractRaw(html, key) {
-    const m = html.match(new RegExp('"' + key + '":\\{"raw":([0-9.e+\\-]+)'));
-    return m ? parseFloat(m[1]) : null;
-  }
   for (const proxy of PROXIES) {
     for (const pageUrl of pageUrls) {
       try {
-        const res = await fetch(proxy + encodeURIComponent(pageUrl + '?_cb=' + Date.now()), { cache: 'no-store' });
+        const res = await fetch(proxy + encodeURIComponent(pageUrl), { cache: 'no-store' });
         if (!res.ok) continue;
         const html = await res.text();
-        if (!html || html.length < 1000) continue;
-        const grossM = extractRaw(html, 'grossMargins');
-        const profitM = extractRaw(html, 'profitMargins');
-        // Only return if we got some useful data
-        if (grossM != null || profitM != null) {
-          return {
-            financialData: {
-              grossMargins: { raw: grossM },
-              operatingMargins: { raw: extractRaw(html, 'operatingMargins') },
-              profitMargins: { raw: profitM },
-              returnOnEquity: { raw: extractRaw(html, 'returnOnEquity') },
-              returnOnAssets: { raw: extractRaw(html, 'returnOnAssets') },
-              debtToEquity: { raw: extractRaw(html, 'debtToEquity') },
-              currentRatio: { raw: extractRaw(html, 'currentRatio') },
-              freeCashflow: { raw: extractRaw(html, 'freeCashflow') },
-              totalRevenue: { raw: extractRaw(html, 'totalRevenue') },
-            },
-            defaultKeyStatistics: {
-              priceToSalesTrailing12Months: { raw: extractRaw(html, 'priceToSalesTrailing12Months') },
-              enterpriseToEbitda: { raw: extractRaw(html, 'enterpriseToEbitda') },
-              enterpriseToRevenue: { raw: extractRaw(html, 'enterpriseToRevenue') },
+        if (!html || html.length < 2000) continue;
+
+        // Try to find and parse __NEXT_DATA__ JSON blob
+        const ndMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+        if (ndMatch) {
+          try {
+            const nd = JSON.parse(ndMatch[1]);
+            // Deep-search for financialData key
+            function deepGet(obj, key, d) {
+              if (d > 10 || !obj || typeof obj !== 'object') return undefined;
+              if (key in obj) return obj[key];
+              for (const v of Object.values(obj)) {
+                const r = deepGet(v, key, d + 1);
+                if (r !== undefined) return r;
+              }
             }
-          };
+            const finData = deepGet(nd, 'financialData', 0);
+            const statData = deepGet(nd, 'defaultKeyStatistics', 0);
+            if (finData?.grossMargins != null) return { financialData: finData, defaultKeyStatistics: statData || {} };
+          } catch(e) {}
         }
+
+        // Fallback: raw regex extraction
+        const result = buildResult(html);
+        if (result) return result;
       } catch(e) {}
     }
   }
@@ -3360,7 +3399,18 @@ function renderEqLineChart(points, livePrice, prevClose) {
       scales: {
         x: { ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
         y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 5, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } },
-        y2: { type: 'linear', position: 'left', min: 0, max: maxVol * 5, grid: { display: false }, border: { display: false }, ticks: { display: false } }
+        y2: { type: 'linear', position: 'left', min: 0, max: maxVol * 5, grid: { display: false }, border: { display: false },
+          ticks: { maxTicksLimit: 3, color: 'rgba(107,107,122,0.55)', font: { family: "'IBM Plex Mono', monospace", size: 7 },
+            callback: v => {
+              if (v > maxVol * 1.05 || v < 0) return '';
+              if (v === 0) return '0';
+              if (v >= 1e9) return (v/1e9).toFixed(1)+'B';
+              if (v >= 1e6) return (v/1e6).toFixed(0)+'M';
+              if (v >= 1e3) return (v/1e3).toFixed(0)+'K';
+              return v;
+            }
+          }
+        }
       }
     }
   });
