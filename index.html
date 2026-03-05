@@ -1041,55 +1041,124 @@
   }
 
   /* ── Equity Securities Tab ── */
-  .equity-layout {
-    display: grid;
-    grid-template-columns: 240px 1fr 280px;
-    gap: 16px;
-    padding-top: 8px;
-  }
-
-  .eq-watchlist {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
+  #tab-equity {
     display: flex;
-    flex-direction: column;
-    height: fit-content;
-    max-height: calc(100vh - 180px);
+    margin: -32px;
+    min-height: calc(100vh - 70px);
     overflow: hidden;
   }
 
-  .eq-watch-header {
-    padding: 14px 16px 10px;
-    border-bottom: 1px solid var(--border);
+  .eq-sidebar-left {
+    width: 220px;
+    min-width: 220px;
+    border-right: 1px solid var(--border);
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
   }
 
-  #eq-watch-list {
-    overflow-y: auto;
-    flex: 1;
+  .eq-watchlist-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--muted);
+    flex-shrink: 0;
   }
+
+  .eq-watchlist-body {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .eq-add-group-wrap {
+    border-top: 1px solid var(--border);
+    padding: 10px;
+    flex-shrink: 0;
+  }
+
+  .eq-add-group-btn {
+    width: 100%;
+    background: none;
+    border: 1px dashed var(--border-bright);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: all 0.15s;
+  }
+  .eq-add-group-btn:hover { border-color: var(--green); color: var(--green); }
+
+  .eq-group { border-bottom: 1px solid var(--border); }
+
+  .eq-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+  }
+  .eq-group-header:hover { background: rgba(255,255,255,0.03); }
+
+  .eq-group-caret {
+    font-size: 9px;
+    color: var(--muted);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .eq-group.open .eq-group-caret { transform: rotate(90deg); }
+
+  .eq-group-name {
+    flex: 1;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .eq-group-delete {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 2px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .eq-group-header:hover .eq-group-delete { opacity: 1; }
+  .eq-group-delete:hover { color: var(--red); }
+
+  .eq-group-body { display: block; }
+  .eq-group-body.collapsed { display: none; }
 
   .eq-watch-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
     cursor: pointer;
     transition: background 0.15s;
     gap: 8px;
   }
-  .eq-watch-item:last-child { border-bottom: none; }
   .eq-watch-item:hover { background: rgba(255,255,255,0.03); }
   .eq-watch-item.active { background: rgba(255,255,255,0.06); }
 
   .eq-watch-left { flex: 1; min-width: 0; }
-  .eq-watch-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .eq-watch-right { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 
   .eq-watch-ticker {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text);
     letter-spacing: 0.06em;
@@ -1116,7 +1185,7 @@
     border: none;
     color: var(--muted);
     cursor: pointer;
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1;
     padding: 0 2px;
     opacity: 0;
@@ -1125,45 +1194,52 @@
   .eq-watch-item:hover .eq-watch-remove { opacity: 1; }
   .eq-watch-remove:hover { color: var(--red); }
 
-  .eq-watch-add {
+  .eq-watch-add-row {
     display: flex;
-    padding: 10px 12px;
-    gap: 6px;
-    border-top: 1px solid var(--border);
+    padding: 6px 10px;
+    gap: 5px;
+    background: rgba(255,255,255,0.01);
   }
-  .eq-watch-add input {
+  .eq-watch-add-row input {
     flex: 1;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--text);
     font-family: var(--mono);
-    font-size: 11px;
-    padding: 5px 8px;
+    font-size: 10px;
+    padding: 4px 7px;
     outline: none;
     transition: border-color 0.15s;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
+    min-width: 0;
   }
-  .eq-watch-add input:focus { border-color: var(--border-bright); }
-  .eq-watch-add input::placeholder { color: var(--muted); text-transform: none; letter-spacing: 0; }
-  .eq-watch-add button {
+  .eq-watch-add-row input:focus { border-color: var(--border-bright); }
+  .eq-watch-add-row input::placeholder { color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .eq-watch-add-row button {
     background: none;
     border: 1px solid var(--border-bright);
     color: var(--text);
     font-family: var(--mono);
-    font-size: 16px;
-    padding: 3px 10px;
+    font-size: 14px;
+    padding: 2px 8px;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s;
+    flex-shrink: 0;
   }
-  .eq-watch-add button:hover { border-color: var(--green); color: var(--green); }
+  .eq-watch-add-row button:hover { border-color: var(--green); color: var(--green); }
 
-  .eq-main {
+  /* ── Equity Content ── */
+  .eq-content {
+    flex: 1;
+    padding: 24px 28px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
     min-width: 0;
   }
 
@@ -1232,161 +1308,100 @@
   .eq-stock-change.up   { background: var(--green-dim); color: var(--green); }
   .eq-stock-change.down { background: var(--red-dim);   color: var(--red); }
 
+  /* ── Chart + Data Row ── */
+  .eq-chart-data-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+
+  .eq-chart-col { min-width: 0; }
+
   .eq-chart-container {
     position: relative;
-    aspect-ratio: 16 / 7;
-    max-height: 400px;
+    aspect-ratio: 1 / 1;
+    width: 100%;
   }
   .eq-chart-container canvas {
     width: 100% !important;
     height: 100% !important;
   }
 
+  .eq-zoom-hint {
+    font-size: 9px;
+    color: var(--muted);
+    text-align: right;
+    padding: 4px 6px;
+    letter-spacing: 0.04em;
+  }
+
   .eq-chart-type-toggle { display: flex; gap: 2px; }
 
-  .eq-sidebar {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    height: fit-content;
-    max-height: calc(100vh - 180px);
+  /* ── Data Panel ── */
+  .eq-data-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: calc(100vh - 200px);
     overflow-y: auto;
   }
 
-  .eq-section-title {
-    font-size: 9px;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-
-  .eq-info-grid {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 8px;
-  }
-
-  .eq-info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 8px;
-    padding: 4px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-  }
-
-  .eq-info-label { font-size: 10px; color: var(--muted); flex-shrink: 0; }
-  .eq-info-value { font-size: 10px; color: var(--text); text-align: right; word-break: break-word; }
-
-  .eq-description {
-    font-size: 10px;
-    color: var(--muted);
-    line-height: 1.55;
-    margin-top: 10px;
-    font-family: var(--sans);
-  }
-
-  .eq-ratio-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-  }
-  .eq-ratio-label { font-size: 10px; color: var(--muted); }
-  .eq-ratio-value { font-size: 10px; font-weight: 600; color: var(--text); }
-  .eq-ratio-value.good { color: var(--green); }
-  .eq-ratio-value.warn { color: #f0c040; }
-
-  /* ── Financial Statements ── */
-  .eq-financials {
-    margin-top: 20px;
+  .eq-data-section {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
   }
 
-  .fin-controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .fin-tab-bar { display: flex; gap: 2px; }
-  .fin-tab {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 4px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    letter-spacing: 0.08em;
-    transition: all 0.15s;
-  }
-  .fin-tab:hover  { color: var(--text); background: rgba(255,255,255,0.04); }
-  .fin-tab.active { color: var(--text); font-weight: 600; background: rgba(255,255,255,0.07); }
-
-  .fin-period-toggle { display: flex; gap: 2px; }
-  .fin-period {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 4px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    letter-spacing: 0.08em;
-    transition: all 0.15s;
-  }
-  .fin-period:hover  { color: var(--text); background: rgba(255,255,255,0.04); }
-  .fin-period.active { color: var(--text); font-weight: 600; background: rgba(255,255,255,0.07); border: 1px solid var(--border-bright); }
-
-  .fin-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: var(--mono);
-    font-size: 11px;
-  }
-  .fin-table th {
+  .eq-data-section-title {
     font-size: 9px;
-    font-weight: 500;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.3em;
     text-transform: uppercase;
     color: var(--muted);
-    text-align: right;
-    padding: 10px 16px;
+    padding: 10px 12px 6px;
     border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-    background: var(--surface);
   }
-  .fin-table td {
-    padding: 9px 16px;
-    text-align: right;
-    color: var(--muted);
+
+  .eq-metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .eq-metric {
+    padding: 8px 12px;
     border-bottom: 1px solid rgba(255,255,255,0.03);
-    white-space: nowrap;
+    border-right: 1px solid rgba(255,255,255,0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
   }
-  .fin-table tr:last-child td { border-bottom: none; }
-  .fin-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .eq-metric:nth-child(even) { border-right: none; }
+  .eq-metric:nth-last-child(-n+2) { border-bottom: none; }
+
+  .eq-metric-label {
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .eq-metric-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .eq-metric-value.good { color: var(--green); }
+  .eq-metric-value.warn { color: #f0c040; }
+  .eq-metric-value.bad  { color: var(--red); }
 
   /* ── Equity Responsive ── */
-  @media (max-width: 1200px) {
-    .equity-layout { grid-template-columns: 200px 1fr 260px; }
-  }
   @media (max-width: 960px) {
-    .equity-layout { grid-template-columns: 1fr; }
-    .eq-watchlist, .eq-sidebar { max-height: none; }
-    .eq-chart-container { aspect-ratio: 16 / 9; max-height: none; }
+    #tab-equity { flex-direction: column; margin: -12px; min-height: unset; }
+    .eq-sidebar-left { width: 100%; min-width: unset; border-right: none; border-bottom: 1px solid var(--border); max-height: 200px; }
+    .eq-chart-data-row { grid-template-columns: 1fr; }
+    .eq-chart-container { aspect-ratio: 16 / 9; }
+    .eq-data-col { max-height: none; }
   }
 </style>
 </head>
@@ -1712,83 +1727,60 @@
   <!-- TAB: EQUITY SECURITIES -->
   <div id="tab-equity" class="tab-panel hidden">
 
-    <!-- 3-col layout -->
-    <div class="equity-layout">
-
-      <!-- LEFT: Watchlist -->
-      <div class="eq-watchlist">
-        <div class="eq-watch-header">
-          <span class="eq-section-title" style="margin:0">Watchlist</span>
-        </div>
-        <div id="eq-watch-list"></div>
-        <div class="eq-watch-add">
-          <input id="eq-watch-input" placeholder="Add ticker..." onkeydown="if(event.key==='Enter')addToWatchlist()" />
-          <button onclick="addToWatchlist()">+</button>
-        </div>
+    <!-- LEFT: Full-height Watchlist Sidebar -->
+    <div class="eq-sidebar-left">
+      <div class="eq-watchlist-header">Watchlist</div>
+      <div class="eq-watchlist-body" id="eq-watchlist-body"></div>
+      <div class="eq-add-group-wrap">
+        <button class="eq-add-group-btn" onclick="addWatchlistGroup()">+ New Group</button>
       </div>
+    </div>
 
-      <!-- CENTER: Main chart -->
-      <div class="eq-main">
-        <div class="eq-search-wrap">
-          <input id="eq-ticker-input" placeholder="Enter ticker (e.g. AAPL, MSFT, NVDA)..."
-                 onkeydown="if(event.key==='Enter') loadEquityStock(this.value.trim().toUpperCase())" />
-          <button onclick="loadEquityStock(document.getElementById('eq-ticker-input').value.trim().toUpperCase())">Analyze →</button>
-        </div>
-        <div id="eq-stock-header" class="eq-stock-header" style="display:none"></div>
-        <div class="chart-panel">
-          <div class="chart-header">
-            <div class="chart-title-row">
-              <div class="chart-title" id="eq-chart-title">—</div>
-              <span class="chart-pct-badge" id="eq-chart-pct">—</span>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <div class="eq-chart-type-toggle">
-                <button class="chart-tab active" id="eq-toggle-line" onclick="setEqChartType('line')">Line</button>
-                <button class="chart-tab" id="eq-toggle-candle" onclick="setEqChartType('candle')">Candle</button>
+    <!-- RIGHT: Content Area -->
+    <div class="eq-content">
+      <div class="eq-search-wrap">
+        <input id="eq-ticker-input" placeholder="Enter ticker (e.g. AAPL, MSFT, NVDA)..."
+               onkeydown="if(event.key==='Enter') loadEquityStock(this.value.trim().toUpperCase())" />
+        <button onclick="loadEquityStock(document.getElementById('eq-ticker-input').value.trim().toUpperCase())">Analyze →</button>
+      </div>
+      <div id="eq-stock-header" class="eq-stock-header" style="display:none"></div>
+      <div class="eq-chart-data-row">
+        <!-- Chart column (square) -->
+        <div class="eq-chart-col">
+          <div class="chart-panel">
+            <div class="chart-header">
+              <div class="chart-title-row">
+                <div class="chart-title" id="eq-chart-title">—</div>
+                <span class="chart-pct-badge" id="eq-chart-pct">—</span>
               </div>
-              <div class="chart-tabs" id="eq-range-tabs">
-                <button class="range-tab" data-range="1d" data-interval="5m">1D</button>
-                <button class="range-tab" data-range="5d" data-interval="30m">1W</button>
-                <button class="range-tab" data-range="1mo" data-interval="1d">1M</button>
-                <button class="range-tab" data-range="6mo" data-interval="1d">6M</button>
-                <button class="range-tab active" data-range="1y" data-interval="1d">1Y</button>
-                <button class="range-tab" data-range="ytd" data-interval="1d">YTD</button>
-                <button class="range-tab" data-range="5y" data-interval="1wk">5Y</button>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <div class="eq-chart-type-toggle">
+                  <button class="chart-tab active" id="eq-toggle-line" onclick="setEqChartType('line')">Line</button>
+                  <button class="chart-tab" id="eq-toggle-candle" onclick="setEqChartType('candle')">Candle</button>
+                </div>
+                <div class="chart-tabs" id="eq-range-tabs">
+                  <button class="range-tab" data-range="1d" data-interval="5m">1D</button>
+                  <button class="range-tab" data-range="5d" data-interval="30m">1W</button>
+                  <button class="range-tab" data-range="1mo" data-interval="1d">1M</button>
+                  <button class="range-tab" data-range="6mo" data-interval="1d">6M</button>
+                  <button class="range-tab active" data-range="1y" data-interval="1d">1Y</button>
+                  <button class="range-tab" data-range="ytd" data-interval="1d">YTD</button>
+                  <button class="range-tab" data-range="5y" data-interval="1wk">5Y</button>
+                </div>
               </div>
             </div>
+            <div class="eq-chart-container">
+              <canvas id="eq-chart"></canvas>
+              <div class="chart-loading" id="eq-chart-loading">Enter a ticker to load chart</div>
+            </div>
+            <div class="eq-zoom-hint">Scroll to zoom · drag to measure · dbl-click to reset</div>
           </div>
-          <div class="eq-chart-container">
-            <canvas id="eq-chart"></canvas>
-            <div class="chart-loading" id="eq-chart-loading">Enter a ticker to load chart</div>
-          </div>
+        </div>
+        <!-- Fundamentals data panel -->
+        <div class="eq-data-col" id="eq-data-col">
+          <div style="padding:40px 20px;font-size:11px;color:var(--muted);text-align:center;line-height:1.8">Search for a stock to view<br>fundamentals &amp; metrics.</div>
         </div>
       </div>
-
-      <!-- RIGHT: Info + Ratios -->
-      <div class="eq-sidebar">
-        <div id="eq-business-info">
-          <div class="eq-section-title">Company</div>
-          <div style="font-size:10px;color:var(--muted);padding:8px 0;line-height:1.6">Search for a stock to view company info and ratios.</div>
-        </div>
-        <div id="eq-ratios"></div>
-      </div>
-
-    </div><!-- /equity-layout -->
-
-    <!-- BOTTOM: Financial Statements -->
-    <div class="eq-financials" id="eq-financials" style="display:none">
-      <div class="fin-controls">
-        <div class="fin-tab-bar">
-          <button class="fin-tab active" onclick="showFinTab('income',this)">Income Statement</button>
-          <button class="fin-tab" onclick="showFinTab('balance',this)">Balance Sheet</button>
-          <button class="fin-tab" onclick="showFinTab('cashflow',this)">Cash Flow</button>
-        </div>
-        <div class="fin-period-toggle">
-          <button class="fin-period active" onclick="setFinPeriod('annual',this)">Annual</button>
-          <button class="fin-period" onclick="setFinPeriod('quarterly',this)">Quarterly</button>
-        </div>
-      </div>
-      <div id="fin-table-wrap"></div>
     </div>
 
   </div><!-- /tab-equity -->
@@ -1807,6 +1799,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial/dist/chartjs-chart-financial.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon/dist/chartjs-adapter-luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script>
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
 const FK = 'd6jikipr01qkvh5q2pugd6jikipr01qkvh5q2pv0';
@@ -2814,57 +2807,113 @@ let eqOhlcPoints = [];
 let eqCurrentSymbol = null;
 let eqCurrentRange = '1y', eqCurrentInterval = '1d';
 let eqChartType = 'line';
-let finCurrentTab = 'income', finCurrentPeriod = 'annual';
-let finData = {};
-let watchlist = JSON.parse(localStorage.getItem('eq-watchlist') || '["AAPL","MSFT","NVDA"]');
+let watchlistGroups = [];
 
-function saveWatchlist() {
-  localStorage.setItem('eq-watchlist', JSON.stringify(watchlist));
+function loadWatchlistGroups() {
+  const v2 = localStorage.getItem('eq-watchlist-v2');
+  if (v2) { watchlistGroups = JSON.parse(v2); return; }
+  // Migrate old flat array
+  const old = JSON.parse(localStorage.getItem('eq-watchlist') || '["AAPL","MSFT","NVDA"]');
+  watchlistGroups = [{ name: 'Watchlist', open: true, tickers: old }];
+  saveWatchlistGroups();
 }
 
-function addToWatchlist() {
-  const input = document.getElementById('eq-watch-input');
-  const sym = (input.value || '').trim().toUpperCase().replace(/[^A-Z0-9.\-^]/g, '');
+function saveWatchlistGroups() {
+  localStorage.setItem('eq-watchlist-v2', JSON.stringify(watchlistGroups));
+}
+
+function addWatchlistGroup() {
+  const name = prompt('Group name:');
+  if (!name || !name.trim()) return;
+  watchlistGroups.push({ name: name.trim(), open: true, tickers: [] });
+  saveWatchlistGroups();
+  renderWatchlist();
+}
+
+function deleteGroup(idx) {
+  const g = watchlistGroups[idx];
+  if (g.tickers.length && !confirm('Delete group "' + g.name + '" and its ' + g.tickers.length + ' stock(s)?')) return;
+  watchlistGroups.splice(idx, 1);
+  saveWatchlistGroups();
+  renderWatchlist();
+}
+
+function toggleGroup(idx) {
+  watchlistGroups[idx].open = !watchlistGroups[idx].open;
+  saveWatchlistGroups();
+  renderWatchlist();
+}
+
+function addToGroup(groupIdx) {
+  const input = document.getElementById('eq-group-input-' + groupIdx);
+  if (!input) return;
+  const sym = input.value.trim().toUpperCase().replace(/[^A-Z0-9.\-^]/g, '');
   if (!sym || sym.length > 8) return;
-  if (!watchlist.includes(sym)) { watchlist.push(sym); saveWatchlist(); }
+  if (!watchlistGroups[groupIdx].tickers.includes(sym)) {
+    watchlistGroups[groupIdx].tickers.push(sym);
+    saveWatchlistGroups();
+  }
   input.value = '';
   renderWatchlist();
 }
 
-function removeFromWatchlist(symbol) {
-  const idx = watchlist.indexOf(symbol);
-  if (idx !== -1) { watchlist.splice(idx, 1); saveWatchlist(); renderWatchlist(); }
+function removeFromGroup(groupIdx, sym) {
+  watchlistGroups[groupIdx].tickers = watchlistGroups[groupIdx].tickers.filter(t => t !== sym);
+  saveWatchlistGroups();
+  renderWatchlist();
 }
 
 async function renderWatchlist() {
-  const container = document.getElementById('eq-watch-list');
+  loadWatchlistGroups();
+  const container = document.getElementById('eq-watchlist-body');
   if (!container) return;
-  if (!watchlist.length) {
-    container.innerHTML = '<div style="padding:14px 16px;font-size:10px;color:var(--muted)">No stocks in watchlist.</div>';
-    return;
-  }
-  container.innerHTML = '<div style="padding:12px 16px;font-size:10px;color:var(--muted);letter-spacing:0.08em">Loading...</div>';
-  const rows = await Promise.all(watchlist.map(async sym => {
-    try { const d = await fetchYahoo(sym); return { sym, price: d.price, change: d.change, pct: d.pct, ok: true }; }
-    catch(e) { return { sym, ok: false }; }
-  }));
   container.innerHTML = '';
-  rows.forEach(r => {
-    const div = document.createElement('div');
-    div.className = 'eq-watch-item' + (eqCurrentSymbol === r.sym ? ' active' : '');
-    div.onclick = () => { document.getElementById('eq-ticker-input').value = r.sym; loadEquityStock(r.sym); };
-    const up = r.ok && r.change >= 0;
-    div.innerHTML =
-      '<div class="eq-watch-left"><div class="eq-watch-ticker">' + r.sym + '</div></div>' +
-      '<div class="eq-watch-right">' +
-        (r.ok
-          ? '<div class="eq-watch-price">$' + r.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>' +
-            '<div class="eq-watch-pct ' + (up?'up':'down') + '">' + (up?'+':'') + r.pct.toFixed(2) + '%</div>'
-          : '<div class="eq-watch-price" style="color:var(--muted)">—</div>') +
-        '<button class="eq-watch-remove" onclick="event.stopPropagation();removeFromWatchlist(\'' + r.sym + '\')" title="Remove">×</button>' +
+  for (let gi = 0; gi < watchlistGroups.length; gi++) {
+    const g = watchlistGroups[gi];
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'eq-group' + (g.open ? ' open' : '');
+    groupDiv.innerHTML =
+      '<div class="eq-group-header" onclick="toggleGroup(' + gi + ')">' +
+        '<span class="eq-group-caret">&#9658;</span>' +
+        '<span class="eq-group-name">' + g.name + '</span>' +
+        '<button class="eq-group-delete" onclick="event.stopPropagation();deleteGroup(' + gi + ')" title="Delete group">&times;</button>' +
       '</div>';
-    container.appendChild(div);
-  });
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'eq-group-body' + (g.open ? '' : ' collapsed');
+    if (g.open && g.tickers.length > 0) {
+      const rows = await Promise.all(g.tickers.map(async sym => {
+        try { const d = await fetchYahoo(sym); return { sym, price: d.price, change: d.change, pct: d.pct, ok: true }; }
+        catch(e) { return { sym, ok: false }; }
+      }));
+      rows.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'eq-watch-item' + (eqCurrentSymbol === r.sym ? ' active' : '');
+        item.onclick = () => { document.getElementById('eq-ticker-input').value = r.sym; loadEquityStock(r.sym); };
+        const up = r.ok && r.change >= 0;
+        item.innerHTML =
+          '<div class="eq-watch-left"><div class="eq-watch-ticker">' + r.sym + '</div></div>' +
+          '<div class="eq-watch-right">' +
+            (r.ok
+              ? '<div class="eq-watch-price">$' + r.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>' +
+                '<div class="eq-watch-pct ' + (up?'up':'down') + '">' + (up?'+':'') + r.pct.toFixed(2) + '%</div>'
+              : '<div class="eq-watch-price" style="color:var(--muted)">—</div>') +
+            '<button class="eq-watch-remove" onclick="event.stopPropagation();removeFromGroup(' + gi + ',\'' + r.sym + '\')" title="Remove">&times;</button>' +
+          '</div>';
+        bodyDiv.appendChild(item);
+      });
+    } else if (g.open && g.tickers.length === 0) {
+      bodyDiv.innerHTML = '<div style="padding:8px 14px;font-size:10px;color:var(--muted)">No stocks added.</div>';
+    }
+    const addRow = document.createElement('div');
+    addRow.className = 'eq-watch-add-row';
+    addRow.innerHTML =
+      '<input id="eq-group-input-' + gi + '" placeholder="Add ticker..." ' +
+        'onkeydown="if(event.key===\'Enter\')addToGroup(' + gi + ')" />' +
+      '<button onclick="addToGroup(' + gi + ')">+</button>';
+    if (g.open) bodyDiv.appendChild(addRow);
+    groupDiv.appendChild(bodyDiv);
+    container.appendChild(groupDiv);
+  }
 }
 
 function fmtFinNum(n) {
@@ -2882,13 +2931,27 @@ function fmtPct(n) {
   return (n * 100).toFixed(2) + '%';
 }
 
-async function fetchQuoteSummary(symbol) {
-  const modules = [
-    'assetProfile','defaultKeyStatistics','financialData','price',
-    'incomeStatementHistory','incomeStatementHistoryQuarterly',
-    'balanceSheetHistory','balanceSheetHistoryQuarterly',
-    'cashflowStatementHistory','cashflowStatementHistoryQuarterly',
-  ].join(',');
+async function fetchYahooV7Quote(symbol) {
+  const yurls = [
+    'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + symbol,
+    'https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + symbol,
+  ];
+  for (const proxy of PROXIES) {
+    for (const yurl of yurls) {
+      try {
+        const res = await fetch(proxy + encodeURIComponent(yurl + '&_cb=' + Date.now()), { cache: 'no-store' });
+        if (!res.ok) continue;
+        const j = await res.json();
+        const result = j?.quoteResponse?.result?.[0];
+        if (result) return result;
+      } catch(e) {}
+    }
+  }
+  return null;
+}
+
+async function fetchFundamentals(symbol) {
+  const modules = 'financialData,defaultKeyStatistics';
   const yurls = [
     'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
     'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
@@ -2903,63 +2966,88 @@ async function fetchQuoteSummary(symbol) {
       } catch(e) {}
     }
   }
-  throw new Error('QuoteSummary failed for ' + symbol);
+  return null;
 }
 
-function renderBusinessInfo(data) {
-  const el = document.getElementById('eq-business-info');
+function renderDataPanel(v7, fund) {
+  const el = document.getElementById('eq-data-col');
   if (!el) return;
-  const profile = data.assetProfile || {};
-  const stats = data.defaultKeyStatistics || {};
-  const price = data.price || {};
-  const marketCap = stats.marketCap?.raw || price.marketCap?.raw;
-  el.innerHTML =
-    '<div class="eq-section-title">Company</div>' +
-    '<div class="eq-info-grid">' +
-      '<div class="eq-info-row"><span class="eq-info-label">Sector</span><span class="eq-info-value">' + (profile.sector || '—') + '</span></div>' +
-      '<div class="eq-info-row"><span class="eq-info-label">Industry</span><span class="eq-info-value">' + (profile.industry || '—') + '</span></div>' +
-      '<div class="eq-info-row"><span class="eq-info-label">Market Cap</span><span class="eq-info-value">$' + fmtFinNum(marketCap) + '</span></div>' +
-      '<div class="eq-info-row"><span class="eq-info-label">Exchange</span><span class="eq-info-value">' + (price.exchangeName || '—') + '</span></div>' +
-      '<div class="eq-info-row"><span class="eq-info-label">Country</span><span class="eq-info-value">' + (profile.country || '—') + '</span></div>' +
-      '<div class="eq-info-row"><span class="eq-info-label">Employees</span><span class="eq-info-value">' + (profile.fullTimeEmployees ? profile.fullTimeEmployees.toLocaleString() : '—') + '</span></div>' +
-    '</div>' +
-    (profile.longBusinessSummary
-      ? '<div class="eq-description">' + profile.longBusinessSummary.substring(0, 300) + (profile.longBusinessSummary.length > 300 ? '...' : '') + '</div>'
-      : '');
-}
+  const fin = fund?.financialData || {};
+  const stats = fund?.defaultKeyStatistics || {};
 
-function renderRatios(data) {
-  const el = document.getElementById('eq-ratios');
-  if (!el) return;
-  const stats = data.defaultKeyStatistics || {};
-  const fin = data.financialData || {};
-  function row(label, rawVal, fmtFn, goodFn) {
-    if (rawVal == null || isNaN(rawVal)) return '<div class="eq-ratio-row"><span class="eq-ratio-label">' + label + '</span><span class="eq-ratio-value">—</span></div>';
-    const val = fmtFn(rawVal);
-    const cls = goodFn ? (goodFn(rawVal) ? 'good' : 'warn') : '';
-    return '<div class="eq-ratio-row"><span class="eq-ratio-label">' + label + '</span><span class="eq-ratio-value ' + cls + '">' + val + '</span></div>';
+  function metric(label, value, cls) {
+    return '<div class="eq-metric"><div class="eq-metric-label">' + label + '</div><div class="eq-metric-value' + (cls ? ' ' + cls : '') + '">' + (value != null ? value : '—') + '</div></div>';
   }
+  function section(title, metrics) {
+    return '<div class="eq-data-section"><div class="eq-data-section-title">' + title + '</div><div class="eq-metrics-grid">' + metrics.join('') + '</div></div>';
+  }
+
+  const price = v7?.regularMarketPrice;
+  const change = v7?.regularMarketChange;
+  const changePct = v7?.regularMarketChangePercent;
+  const vol = v7?.regularMarketVolume;
+  const avgVol = v7?.averageDailyVolume3Month;
+  const mktCap = v7?.marketCap;
+  const sharesOut = v7?.sharesOutstanding;
+  const high52 = v7?.fiftyTwoWeekHigh;
+  const low52 = v7?.fiftyTwoWeekLow;
+  const trPE = v7?.trailingPE;
+  const fwdPE = v7?.forwardPE;
+  const pb = v7?.priceToBook;
+  const eps = v7?.epsTrailingTwelveMonths;
+  const beta = v7?.beta;
+  const ps = stats.priceToSalesTrailing12Months?.raw;
+  const evEbitda = stats.enterpriseToEbitda?.raw;
+  const fcfRaw = fin.freeCashflow?.raw;
+  const pfcf = (mktCap && fcfRaw && fcfRaw > 0) ? mktCap / fcfRaw : null;
+  const grossM = fin.grossMargins?.raw;
+  const opM = fin.operatingMargins?.raw;
+  const netM = fin.profitMargins?.raw;
+  const roe = fin.returnOnEquity?.raw;
+  const roa = fin.returnOnAssets?.raw;
+  const de = fin.debtToEquity?.raw;
+  const cr = fin.currentRatio?.raw;
+  const rev = fin.totalRevenue?.raw;
+  const upDown = (change || 0) >= 0;
+  const changeStr = change != null
+    ? (upDown ? '+' : '') + change.toFixed(2) + ' (' + (upDown ? '+' : '') + ((changePct || 0) * 100).toFixed(2) + '%)'
+    : '—';
+
   el.innerHTML =
-    '<div class="eq-section-title" style="margin-top:16px">Valuation</div>' +
-    row('Trailing P/E',  stats.trailingPE?.raw,  v => fmt(v) + 'x', v => v > 0 && v < 25) +
-    row('Forward P/E',   stats.forwardPE?.raw,   v => fmt(v) + 'x', v => v > 0 && v < 20) +
-    row('Price / Book',  stats.priceToBook?.raw,  v => fmt(v) + 'x', v => v > 0 && v < 3) +
-    row('Price / Sales', stats.priceToSalesTrailing12Months?.raw, v => fmt(v) + 'x', v => v > 0 && v < 5) +
-    row('EV / EBITDA',   stats.enterpriseToEbitda?.raw,  v => fmt(v) + 'x', v => v > 0 && v < 15) +
-    row('EV / Revenue',  stats.enterpriseToRevenue?.raw, v => fmt(v) + 'x', v => v > 0 && v < 5) +
-    '<div class="eq-section-title" style="margin-top:12px">Fundamentals</div>' +
-    row('ROE',          fin.returnOnEquity?.raw,   fmtPct, v => v > 0.15) +
-    row('ROA',          fin.returnOnAssets?.raw,   fmtPct, v => v > 0.05) +
-    row('Gross Margin', fin.grossMargins?.raw,     fmtPct, v => v > 0.40) +
-    row('Net Margin',   fin.profitMargins?.raw,    fmtPct, v => v > 0.10) +
-    row('Op Margin',    fin.operatingMargins?.raw, fmtPct, v => v > 0.15) +
-    row('Debt / Equity',fin.debtToEquity?.raw,     v => fmt(v / 100) + 'x', v => (v / 100) < 1) +
-    row('Current Ratio',fin.currentRatio?.raw,     v => fmt(v) + 'x', v => v > 1.5) +
-    '<div class="eq-section-title" style="margin-top:12px">Other</div>' +
-    row('EPS (TTM)',  stats.trailingEps?.raw,      v => '$' + fmt(v),  null) +
-    row('Beta',       stats.beta?.raw,              v => fmt(v),        v => v < 1.5) +
-    row('52W High',   stats.fiftyTwoWeekHigh?.raw,  v => '$' + fmt(v),  null) +
-    row('52W Low',    stats.fiftyTwoWeekLow?.raw,   v => '$' + fmt(v),  null);
+    section('Price & Market', [
+      metric('Price', price != null ? '$' + price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'),
+      metric('Change', changeStr, upDown ? 'good' : 'bad'),
+      metric('Volume', fmtFinNum(vol)),
+      metric('Avg Volume', fmtFinNum(avgVol)),
+      metric('Market Cap', '$' + fmtFinNum(mktCap)),
+      metric('Shares Out', fmtFinNum(sharesOut)),
+      metric('52W High', high52 != null ? '$' + high52.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'),
+      metric('52W Low', low52 != null ? '$' + low52.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'),
+    ]) +
+    section('Valuation', [
+      metric('P/E (TTM)', trPE != null ? trPE.toFixed(1) + 'x' : '—', trPE != null && trPE > 0 && trPE < 25 ? 'good' : trPE != null && trPE < 40 ? 'warn' : ''),
+      metric('Forward P/E', fwdPE != null ? fwdPE.toFixed(1) + 'x' : '—', fwdPE != null && fwdPE > 0 && fwdPE < 20 ? 'good' : fwdPE != null && fwdPE < 35 ? 'warn' : ''),
+      metric('P/B', pb != null ? pb.toFixed(2) + 'x' : '—', pb != null && pb > 0 && pb < 3 ? 'good' : pb != null && pb < 6 ? 'warn' : ''),
+      metric('P/S', ps != null ? ps.toFixed(2) + 'x' : '—', ps != null && ps > 0 && ps < 5 ? 'good' : ps != null && ps < 10 ? 'warn' : ''),
+      metric('P/FCF', pfcf != null ? pfcf.toFixed(1) + 'x' : '—', pfcf != null && pfcf > 0 && pfcf < 25 ? 'good' : pfcf != null && pfcf < 50 ? 'warn' : ''),
+      metric('EV/EBITDA', evEbitda != null ? evEbitda.toFixed(1) + 'x' : '—', evEbitda != null && evEbitda > 0 && evEbitda < 15 ? 'good' : evEbitda != null && evEbitda < 25 ? 'warn' : ''),
+    ]) +
+    section('Profitability', [
+      metric('Gross Margin', fmtPct(grossM), grossM != null && grossM > 0.40 ? 'good' : grossM != null && grossM > 0.20 ? 'warn' : ''),
+      metric('Op Margin', fmtPct(opM), opM != null && opM > 0.15 ? 'good' : opM != null && opM > 0.05 ? 'warn' : ''),
+      metric('Net Margin', fmtPct(netM), netM != null && netM > 0.10 ? 'good' : netM != null && netM > 0.02 ? 'warn' : ''),
+      metric('ROE', fmtPct(roe), roe != null && roe > 0.15 ? 'good' : roe != null && roe > 0.05 ? 'warn' : ''),
+      metric('ROA', fmtPct(roa), roa != null && roa > 0.05 ? 'good' : roa != null && roa > 0.01 ? 'warn' : ''),
+      metric('Revenue', '$' + fmtFinNum(rev)),
+    ]) +
+    section('Financial Health', [
+      metric('Debt/Equity', de != null ? (de / 100).toFixed(2) + 'x' : '—', de != null && de / 100 < 0.5 ? 'good' : de != null && de / 100 < 1.5 ? 'warn' : de != null ? 'bad' : ''),
+      metric('Current Ratio', cr != null ? cr.toFixed(2) + 'x' : '—', cr != null && cr > 1.5 ? 'good' : cr != null && cr > 1 ? 'warn' : cr != null ? 'bad' : ''),
+      metric('Free Cash Flow', '$' + fmtFinNum(fcfRaw), fcfRaw != null && fcfRaw > 0 ? 'good' : fcfRaw != null ? 'bad' : ''),
+      metric('EPS (TTM)', eps != null ? '$' + eps.toFixed(2) : '—', eps != null && eps > 0 ? 'good' : eps != null ? 'bad' : ''),
+      metric('Beta', beta != null ? beta.toFixed(2) : '—', beta != null && beta < 1.5 ? 'good' : beta != null && beta < 2.5 ? 'warn' : ''),
+      metric('Exchange', v7?.fullExchangeName || v7?.exchange || '—'),
+    ]);
 }
 
 async function fetchEqChartData(symbol, range, interval) {
@@ -3022,8 +3110,120 @@ function renderEqLineChart(points, livePrice, prevClose) {
   if (pctEl) { pctEl.textContent = (totalPct >= 0 ? '+' : '') + totalPct.toFixed(2) + '%'; pctEl.className = 'chart-pct-badge ' + (totalPct >= 0 ? 'up' : 'down'); }
   const step = Math.max(1, Math.floor(points.length / 120));
   const sampled = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+
+  // AbortController to avoid stacking duplicate listeners on re-renders
+  if (window._eqChartAbort) window._eqChartAbort.abort();
+  window._eqChartAbort = new AbortController();
+  const sig = { signal: window._eqChartAbort.signal };
+
+  function getCanvasX(e, cvs) {
+    const rect = cvs.getBoundingClientRect();
+    return (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  }
+  canvas.addEventListener('mousedown', e => {
+    if (!eqChartInstance) return;
+    eqChartInstance._dragStart = getCanvasX(e, canvas); eqChartInstance._dragEnd = null; eqChartInstance._dragging = true;
+  }, sig);
+  canvas.addEventListener('mousemove', e => {
+    if (!eqChartInstance) return;
+    eqChartInstance._hoverX = getCanvasX(e, canvas);
+    if (eqChartInstance._dragging) eqChartInstance._dragEnd = getCanvasX(e, canvas);
+    eqChartInstance.draw();
+  }, sig);
+  canvas.addEventListener('mouseup', () => { if (eqChartInstance) eqChartInstance._dragging = false; }, sig);
+  canvas.addEventListener('mouseleave', () => {
+    if (eqChartInstance) {
+      eqChartInstance._hoverX = null; eqChartInstance._dragStart = null;
+      eqChartInstance._dragEnd = null; eqChartInstance._dragging = false;
+      eqChartInstance.draw();
+    }
+    const tip = document.getElementById('drag-tooltip');
+    if (tip) tip.style.display = 'none';
+  }, sig);
+  canvas.addEventListener('dblclick', () => { if (eqChartInstance) eqChartInstance.resetZoom(); }, sig);
+
+  const crosshairPlugin = {
+    id: 'eq_crosshair',
+    afterDraw(chart) {
+      const ctx2 = chart.ctx;
+      const area = chart.chartArea;
+      const meta = chart.getDatasetMeta(0);
+      const pts = meta.data;
+      if (!pts || pts.length === 0) return;
+      ctx2.save();
+      function getLineY(px) {
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i], p1 = pts[i + 1];
+          if (px >= p0.x && px <= p1.x) {
+            const t = (px - p0.x) / (p1.x - p0.x);
+            return p0.y + t * (p1.y - p0.y);
+          }
+        }
+        if (px <= pts[0].x) return pts[0].y;
+        return pts[pts.length - 1].y;
+      }
+      if (chart._dragStart != null && chart._dragEnd != null) {
+        const x1 = Math.min(chart._dragStart, chart._dragEnd);
+        const x2 = Math.max(chart._dragStart, chart._dragEnd);
+        if (x2 - x1 > 4) {
+          ctx2.beginPath();
+          ctx2.moveTo(x1, area.bottom);
+          ctx2.lineTo(x1, getLineY(x1));
+          for (let i = 0; i < pts.length; i++) {
+            if (pts[i].x >= x1 && pts[i].x <= x2) ctx2.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx2.lineTo(x2, getLineY(x2));
+          ctx2.lineTo(x2, area.bottom);
+          ctx2.closePath();
+          ctx2.fillStyle = 'rgba(255,255,255,0.07)';
+          ctx2.fill();
+          ctx2.setLineDash([]);
+          ctx2.lineWidth = 1;
+          ctx2.strokeStyle = 'rgba(255,255,255,0.25)';
+          ctx2.beginPath(); ctx2.moveTo(x1, getLineY(x1)); ctx2.lineTo(x1, area.bottom); ctx2.stroke();
+          ctx2.beginPath(); ctx2.moveTo(x2, getLineY(x2)); ctx2.lineTo(x2, area.bottom); ctx2.stroke();
+          const yScale = chart.scales.y;
+          const v1 = yScale.getValueForPixel(getLineY(x1));
+          const v2 = yScale.getValueForPixel(getLineY(x2));
+          if (v1 && v2) {
+            const pct = ((v2 - v1) / Math.abs(v1)) * 100;
+            const sign = pct >= 0 ? '+' : '';
+            const tip = document.getElementById('drag-tooltip');
+            if (tip) {
+              tip.textContent = sign + pct.toFixed(2) + '%';
+              tip.style.color = pct >= 0 ? 'var(--green)' : 'var(--red)';
+              const rect = canvas.getBoundingClientRect();
+              const cx = rect.left + (x1 + x2) / 2;
+              const ty = rect.top + area.top - 36;
+              tip.style.left = Math.max(8, cx - 40) + 'px';
+              tip.style.top = ty + 'px';
+              tip.style.display = 'block';
+            }
+          }
+        } else {
+          const tip = document.getElementById('drag-tooltip');
+          if (tip) tip.style.display = 'none';
+        }
+      } else {
+        const tip = document.getElementById('drag-tooltip');
+        if (tip) tip.style.display = 'none';
+      }
+      if (chart._hoverX != null) {
+        ctx2.strokeStyle = 'rgba(200,200,220,0.18)';
+        ctx2.lineWidth = 1;
+        ctx2.setLineDash([3, 4]);
+        ctx2.beginPath();
+        ctx2.moveTo(chart._hoverX, area.top);
+        ctx2.lineTo(chart._hoverX, area.bottom);
+        ctx2.stroke();
+      }
+      ctx2.restore();
+    }
+  };
+
   eqChartInstance = new Chart(ctx, {
     type: 'line',
+    plugins: [crosshairPlugin],
     data: {
       labels: sampled.map(p => p.x),
       datasets: [{ data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor }]
@@ -3032,7 +3232,11 @@ function renderEqLineChart(points, livePrice, prevClose) {
       responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
       plugins: {
         legend: { display: false },
-        tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10, callbacks: { label: item => ' $' + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) } }
+        tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10, callbacks: { label: item => ' $' + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) } },
+        zoom: {
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+          limits: { x: { minRange: 2 } }
+        }
       },
       scales: {
         x: { ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
@@ -3098,25 +3302,25 @@ async function loadEquityStock(symbol) {
   eqCurrentSymbol = symbol;
   const titleEl = document.getElementById('eq-chart-title');
   if (titleEl) titleEl.textContent = symbol;
-  const bizEl = document.getElementById('eq-business-info');
-  const ratioEl = document.getElementById('eq-ratios');
-  if (bizEl) bizEl.innerHTML = '<div class="eq-section-title">Company</div><div style="padding:8px 0;font-size:10px;color:var(--muted)">Loading...</div>';
-  if (ratioEl) ratioEl.innerHTML = '';
   const headerEl = document.getElementById('eq-stock-header');
   if (headerEl) { headerEl.style.display = 'flex'; headerEl.innerHTML = '<span style="font-size:11px;color:var(--muted)">Loading ' + symbol + '...</span>'; }
+  const dataEl = document.getElementById('eq-data-col');
+  if (dataEl) dataEl.innerHTML = '<div style="padding:40px 20px;font-size:10px;color:var(--muted);text-align:center">Loading fundamentals...</div>';
 
-  const [, summaryResult] = await Promise.allSettled([
+  const [, v7Res, fundRes] = await Promise.allSettled([
     loadEqChart(symbol, eqCurrentRange, eqCurrentInterval),
-    fetchQuoteSummary(symbol)
+    fetchYahooV7Quote(symbol),
+    fetchFundamentals(symbol)
   ]);
 
-  if (summaryResult.status === 'fulfilled') {
-    const data = summaryResult.value;
-    const price = data.price || {};
-    const currentPrice = price.regularMarketPrice?.raw;
-    const change = price.regularMarketChange?.raw;
-    const changePct = price.regularMarketChangePercent?.raw;
-    const companyName = price.longName || price.shortName || symbol;
+  const v7 = v7Res.status === 'fulfilled' ? v7Res.value : null;
+  const fund = fundRes.status === 'fulfilled' ? fundRes.value : null;
+
+  if (v7) {
+    const currentPrice = v7.regularMarketPrice;
+    const change = v7.regularMarketChange;
+    const changePct = v7.regularMarketChangePercent;
+    const companyName = v7.longName || v7.shortName || symbol;
     const up = (change || 0) >= 0;
     if (headerEl) {
       headerEl.innerHTML =
@@ -3124,22 +3328,11 @@ async function loadEquityStock(symbol) {
         '<div class="eq-stock-price">$' + (currentPrice != null ? currentPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : '—') + '</div>' +
         '<span class="eq-stock-change ' + (up?'up':'down') + '">' + (up?'+':'') + (change||0).toFixed(2) + ' (' + (up?'+':'') + ((changePct||0)*100).toFixed(2) + '%)</span>';
     }
-    finData = {
-      incomeAnnual:    data.incomeStatementHistory?.incomeStatementHistory || [],
-      incomeQuarterly: data.incomeStatementHistoryQuarterly?.incomeStatementHistory || [],
-      balanceAnnual:   data.balanceSheetHistory?.balanceSheetStatements || [],
-      balanceQuarterly:data.balanceSheetHistoryQuarterly?.balanceSheetStatements || [],
-      cashAnnual:      data.cashflowStatementHistory?.cashflowStatements || [],
-      cashQuarterly:   data.cashflowStatementHistoryQuarterly?.cashflowStatements || [],
-    };
-    renderBusinessInfo(data);
-    renderRatios(data);
-    const finEl = document.getElementById('eq-financials');
-    if (finEl) finEl.style.display = '';
-    renderFinTable();
   } else {
-    if (bizEl) bizEl.innerHTML = '<div class="eq-section-title">Company</div><div style="padding:8px 0;font-size:10px;color:var(--red)">Data unavailable for ' + symbol + '.</div>';
+    if (headerEl) headerEl.innerHTML = '<span style="font-size:11px;color:var(--muted)">' + symbol + '</span>';
   }
+
+  renderDataPanel(v7, fund);
   // Update active state in watchlist
   document.querySelectorAll('.eq-watch-item').forEach(el => {
     const ticker = el.querySelector('.eq-watch-ticker')?.textContent;
@@ -3147,96 +3340,6 @@ async function loadEquityStock(symbol) {
   });
 }
 
-// ── Financial Statements ──
-const FIN_INCOME_ROWS = [
-  { key: 'totalRevenue',    label: 'Total Revenue' },
-  { key: 'grossProfit',     label: 'Gross Profit' },
-  { key: 'operatingIncome', label: 'Operating Income' },
-  { key: 'ebitda',          label: 'EBITDA' },
-  { key: 'netIncome',       label: 'Net Income' },
-  { key: 'basicEPS',        label: 'EPS (Basic)' },
-  { key: 'dilutedEPS',      label: 'EPS (Diluted)' },
-];
-const FIN_BALANCE_ROWS = [
-  { key: 'totalAssets',            label: 'Total Assets' },
-  { key: 'totalLiab',              label: 'Total Liabilities' },
-  { key: 'totalStockholderEquity', label: "Shareholders' Equity" },
-  { key: 'cash',                   label: 'Cash & Equivalents' },
-  { key: 'longTermDebt',           label: 'Long-Term Debt' },
-  { key: 'goodWill',               label: 'Goodwill' },
-];
-const FIN_CASHFLOW_ROWS = [
-  { key: 'totalCashFromOperatingActivities',      label: 'Operating Cash Flow' },
-  { key: 'capitalExpenditures',                   label: 'Capital Expenditures' },
-  { key: 'freeCashflow',                          label: 'Free Cash Flow' },
-  { key: 'totalCashflowsFromInvestingActivities', label: 'Investing Activities' },
-  { key: 'totalCashFromFinancingActivities',      label: 'Financing Activities' },
-];
-
-function showFinTab(tab, btn) {
-  finCurrentTab = tab;
-  document.querySelectorAll('.fin-tab').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderFinTable();
-}
-
-function setFinPeriod(period, btn) {
-  finCurrentPeriod = period;
-  document.querySelectorAll('.fin-period').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderFinTable();
-}
-
-function renderFinTable() {
-  const wrap = document.getElementById('fin-table-wrap');
-  if (!wrap) return;
-  let rows, statements;
-  if (finCurrentTab === 'income') {
-    rows = FIN_INCOME_ROWS;
-    statements = finCurrentPeriod === 'annual' ? finData.incomeAnnual : finData.incomeQuarterly;
-  } else if (finCurrentTab === 'balance') {
-    rows = FIN_BALANCE_ROWS;
-    statements = finCurrentPeriod === 'annual' ? finData.balanceAnnual : finData.balanceQuarterly;
-  } else {
-    rows = FIN_CASHFLOW_ROWS;
-    statements = finCurrentPeriod === 'annual' ? finData.cashAnnual : finData.cashQuarterly;
-  }
-  if (!statements || !statements.length) {
-    wrap.innerHTML = '<div style="padding:24px;font-size:11px;color:var(--muted);text-align:center;letter-spacing:0.06em">No data available.</div>';
-    return;
-  }
-  const sorted = [...statements].sort((a, b) => (a.endDate?.raw || 0) - (b.endDate?.raw || 0)).slice(-4);
-  const isEPS = key => key === 'basicEPS' || key === 'dilutedEPS';
-  function fmtCell(s, key) {
-    const val = s[key]?.raw;
-    if (val == null) return '—';
-    if (isEPS(key)) return '$' + val.toFixed(2);
-    return '$' + fmtFinNum(val);
-  }
-  function cellStyle(s, key) {
-    const val = s[key]?.raw;
-    if (val == null) return '';
-    if (key === 'totalLiab' || key === 'longTermDebt' || key === 'goodWill') return '';
-    if (key === 'capitalExpenditures') return val < 0 ? 'color:var(--muted)' : 'color:var(--red)';
-    return val >= 0 ? 'color:var(--green)' : 'color:var(--red)';
-  }
-  const cols = sorted.map(s => s.endDate?.fmt || '—');
-  wrap.innerHTML =
-    '<div style="overflow-x:auto"><table class="fin-table">' +
-      '<thead><tr>' +
-        '<th style="text-align:left;min-width:180px">Metric</th>' +
-        cols.map(c => '<th>' + c + '</th>').join('') +
-      '</tr></thead>' +
-      '<tbody>' +
-        rows.map(r =>
-          '<tr>' +
-            '<td style="text-align:left;color:var(--text)">' + r.label + '</td>' +
-            sorted.map(s => '<td style="' + cellStyle(s, r.key) + '">' + fmtCell(s, r.key) + '</td>').join('') +
-          '</tr>'
-        ).join('') +
-      '</tbody>' +
-    '</table></div>';
-}
 </script>
 
 <!-- ── Drag Tooltip ── -->
