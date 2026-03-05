@@ -1048,7 +1048,7 @@
     position: relative;
     left: calc(-32px - max(0px, (100vw - 1400px) / 2));
     width: 100vw;
-    min-height: calc(100vh - 70px);
+    height: calc(100vh - 51px);
     overflow: hidden;
   }
 
@@ -1242,8 +1242,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
     min-width: 0;
   }
 
@@ -1317,14 +1316,30 @@
     display: grid;
     grid-template-columns: 3fr 2fr;
     gap: 10px;
-    align-items: start;
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
   }
 
-  .eq-chart-col { min-width: 0; }
+  .eq-chart-col {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .eq-chart-col .chart-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
 
   .eq-chart-container {
     position: relative;
-    aspect-ratio: 4 / 3;
+    flex: 1;
+    min-height: 0;
     width: 100%;
   }
   .eq-chart-container canvas {
@@ -1347,7 +1362,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-height: calc(100vh - 200px);
+    height: 100%;
     overflow-y: auto;
   }
 
@@ -2808,6 +2823,7 @@ setInterval(loadAllNews, 600000);
 let eqChartInstance = null;
 let eqLinePoints = [];
 let eqOhlcPoints = [];
+let eqVolumePoints = [];
 let eqCurrentSymbol = null;
 let eqCurrentRange = '1y', eqCurrentInterval = '1d';
 let eqChartType = 'line';
@@ -2954,35 +2970,12 @@ async function fetchYahooV7Quote(symbol) {
   return null;
 }
 
-let _yfCrumb = null;
-
-async function getYahooCrumb() {
-  if (_yfCrumb) return _yfCrumb;
-  const crumbUrl = 'https://query1.finance.yahoo.com/v1/test/getcrumb';
-  for (const proxy of PROXIES) {
-    try {
-      const res = await fetch(proxy + encodeURIComponent(crumbUrl), { cache: 'no-store' });
-      if (!res.ok) continue;
-      const text = await res.text();
-      // Valid crumb is a short alphanumeric string, not JSON
-      if (text && text.length > 0 && text.length < 50 && !text.trim().startsWith('{')) {
-        _yfCrumb = text.trim();
-        return _yfCrumb;
-      }
-    } catch(e) {}
-  }
-  return null;
-}
-
 async function fetchFundamentals(symbol) {
+  // Strategy 1: Try v10 quoteSummary directly (works occasionally)
   const modules = 'financialData,defaultKeyStatistics';
-  const crumb = await getYahooCrumb();
-  const crumbParam = crumb ? '&crumb=' + encodeURIComponent(crumb) : '';
   const yurls = [
-    'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false' + crumbParam,
-    'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false' + crumbParam,
-    'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
-    'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules,
+    'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false',
+    'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false',
   ];
   for (const proxy of PROXIES) {
     for (const yurl of yurls) {
@@ -2991,6 +2984,49 @@ async function fetchFundamentals(symbol) {
         if (!res.ok) continue;
         const j = await res.json();
         if (j?.quoteSummary?.result?.[0]) return j.quoteSummary.result[0];
+      } catch(e) {}
+    }
+  }
+
+  // Strategy 2: Scrape fundamentals from Yahoo Finance quote page HTML via regex
+  const pageUrls = [
+    'https://finance.yahoo.com/quote/' + symbol + '/financials/',
+    'https://finance.yahoo.com/quote/' + symbol + '/',
+  ];
+  function extractRaw(html, key) {
+    const m = html.match(new RegExp('"' + key + '":\\{"raw":([0-9.e+\\-]+)'));
+    return m ? parseFloat(m[1]) : null;
+  }
+  for (const proxy of PROXIES) {
+    for (const pageUrl of pageUrls) {
+      try {
+        const res = await fetch(proxy + encodeURIComponent(pageUrl + '?_cb=' + Date.now()), { cache: 'no-store' });
+        if (!res.ok) continue;
+        const html = await res.text();
+        if (!html || html.length < 1000) continue;
+        const grossM = extractRaw(html, 'grossMargins');
+        const profitM = extractRaw(html, 'profitMargins');
+        // Only return if we got some useful data
+        if (grossM != null || profitM != null) {
+          return {
+            financialData: {
+              grossMargins: { raw: grossM },
+              operatingMargins: { raw: extractRaw(html, 'operatingMargins') },
+              profitMargins: { raw: profitM },
+              returnOnEquity: { raw: extractRaw(html, 'returnOnEquity') },
+              returnOnAssets: { raw: extractRaw(html, 'returnOnAssets') },
+              debtToEquity: { raw: extractRaw(html, 'debtToEquity') },
+              currentRatio: { raw: extractRaw(html, 'currentRatio') },
+              freeCashflow: { raw: extractRaw(html, 'freeCashflow') },
+              totalRevenue: { raw: extractRaw(html, 'totalRevenue') },
+            },
+            defaultKeyStatistics: {
+              priceToSalesTrailing12Months: { raw: extractRaw(html, 'priceToSalesTrailing12Months') },
+              enterpriseToEbitda: { raw: extractRaw(html, 'enterpriseToEbitda') },
+              enterpriseToRevenue: { raw: extractRaw(html, 'enterpriseToRevenue') },
+            }
+          };
+        }
       } catch(e) {}
     }
   }
@@ -3097,11 +3133,11 @@ async function fetchEqChartData(symbol, range, interval) {
   const meta = result.meta;
   const timestamps = result.timestamp || [];
   const quote = result.indicators.quote[0];
-  const opens = quote.open || [], highs = quote.high || [], lows = quote.low || [], closes = quote.close || [];
+  const opens = quote.open || [], highs = quote.high || [], lows = quote.low || [], closes = quote.close || [], volumes = quote.volume || [];
   const isIntraday = interval === '5m' || interval === '30m';
   const is1D = interval === '5m'; // Only filter to today for true 1-day view
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const linePoints = [], ohlcPoints = [];
+  const linePoints = [], ohlcPoints = [], volumePoints = [];
   for (let i = 0; i < timestamps.length; i++) {
     const ts = timestamps[i] * 1000;
     const d = new Date(ts);
@@ -3111,7 +3147,9 @@ async function fetchEqChartData(symbol, range, interval) {
     if (isIntraday) label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
     else if (interval === '1wk') label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
     else label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const prevClose2 = i > 0 ? closes[i - 1] : closes[i];
     linePoints.push({ x: label, y: closes[i] });
+    volumePoints.push({ x: label, y: volumes[i] || 0, up: closes[i] >= prevClose2 });
     if (opens[i] != null && highs[i] != null && lows[i] != null) {
       ohlcPoints.push({ x: ts, o: opens[i], h: highs[i], l: lows[i], c: closes[i] });
     }
@@ -3120,8 +3158,9 @@ async function fetchEqChartData(symbol, range, interval) {
   const prevClose = is1D ? (meta.previousClose || meta.chartPreviousClose) : null;
   if (is1D && livePrice && linePoints.length > 0) {
     linePoints.push({ x: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }), y: livePrice });
+    volumePoints.push({ x: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }), y: 0, up: true });
   }
-  return { linePoints, ohlcPoints, livePrice, prevClose };
+  return { linePoints, ohlcPoints, volumePoints, livePrice, prevClose };
 }
 
 function renderEqLineChart(points, livePrice, prevClose) {
@@ -3141,6 +3180,12 @@ function renderEqLineChart(points, livePrice, prevClose) {
   const sampledIdx = [];
   for (let i = 0; i < points.length; i++) { if (i % step === 0 || i === points.length - 1) sampledIdx.push(i); }
   const sampled = sampledIdx.map(i => points[i]);
+
+  // Volume bars (sampled at same indices)
+  const volPoints = (eqVolumePoints.length === points.length) ? eqVolumePoints : [];
+  const sampledVol = sampledIdx.map(i => volPoints[i]?.y ?? 0);
+  const sampledVolColors = sampledIdx.map(i => (volPoints[i]?.up !== false) ? 'rgba(0,217,126,0.35)' : 'rgba(255,77,106,0.35)');
+  const maxVol = Math.max(...sampledVol.filter(v => v > 0), 1);
 
   // EMA calculation on full dataset, then sample at same indices
   function calcEMA(prices, period) {
@@ -3285,19 +3330,24 @@ function renderEqLineChart(points, livePrice, prevClose) {
     data: {
       labels: sampled.map(p => p.x),
       datasets: [
-        { label: 'Price', data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor, order: 3 },
-        { label: 'EMA 12', data: sampledEma12, borderColor: 'rgba(255,170,0,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, order: 1 },
-        { label: 'EMA 26', data: sampledEma26, borderColor: 'rgba(100,160,255,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, order: 2 }
+        { label: 'Price', data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor, yAxisID: 'y', order: 3 },
+        { label: 'EMA 12', data: sampledEma12, borderColor: 'rgba(255,170,0,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, yAxisID: 'y', order: 1 },
+        { label: 'EMA 26', data: sampledEma26, borderColor: 'rgba(100,160,255,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, yAxisID: 'y', order: 2 },
+        { label: 'Volume', type: 'bar', data: sampledVol, backgroundColor: sampledVolColors, borderWidth: 0, yAxisID: 'y2', order: 10 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
       plugins: {
         legend: { display: true, position: 'top', align: 'end', labels: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, boxWidth: 20, boxHeight: 1, padding: 10, usePointStyle: false,
-          filter: item => item.text !== 'Price' } },
+          filter: item => item.text !== 'Price' && item.text !== 'Volume' } },
         tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10,
           callbacks: { label: item => {
             if (item.raw == null) return null;
+            if (item.dataset.label === 'Volume') {
+              const v = item.raw;
+              return ' Vol: ' + (v >= 1e9 ? (v/1e9).toFixed(2)+'B' : v >= 1e6 ? (v/1e6).toFixed(2)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v);
+            }
             const prefix = item.dataset.label === 'Price' ? ' $' : ' ' + item.dataset.label + ': $';
             return prefix + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           }}
@@ -3309,7 +3359,8 @@ function renderEqLineChart(points, livePrice, prevClose) {
       },
       scales: {
         x: { ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
-        y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 5, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } }
+        y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 5, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } },
+        y2: { type: 'linear', position: 'left', min: 0, max: maxVol * 5, grid: { display: false }, border: { display: false }, ticks: { display: false } }
       }
     }
   });
@@ -3349,6 +3400,7 @@ async function loadEqChart(symbol, range, interval) {
     const result = await fetchEqChartData(symbol, range, interval);
     eqLinePoints = result.linePoints;
     eqOhlcPoints = result.ohlcPoints;
+    eqVolumePoints = result.volumePoints || [];
     if (loadingEl) loadingEl.style.display = 'none';
     if (eqChartType === 'candle') renderEqCandleChart(eqOhlcPoints);
     else renderEqLineChart(eqLinePoints, result.livePrice, result.prevClose);
