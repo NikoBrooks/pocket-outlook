@@ -1,4 +1,4 @@
-import { fetchYahoo, fetchYahooV7Quote, fetchFundamentals, fetchFinnhubFundamentals, fetchEqChartData } from './api.js';
+import { fetchYahoo, fetchYahooV7Quote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData } from './api.js';
 import { fmt, fmtFinNum, fmtPct, getRaw } from './utils.js';
 
 // ── Module State ──
@@ -123,64 +123,123 @@ export async function renderWatchlist() {
 function renderDataPanel(v7, fund, chartMeta) {
   const el = document.getElementById('eq-data-col');
   if (!el) return;
-  const fin = fund?.financialData || {};
-  const stats = fund?.defaultKeyStatistics || {};
-  const prc = fund?.price || {};
-  const sum = fund?.summaryDetail || {};
 
   function metric(label, value, cls, id) {
     return '<div class="eq-metric"' + (id ? ' id="' + id + '"' : '') + '><div class="eq-metric-label">' + label + '</div><div class="eq-metric-value' + (cls ? ' ' + cls : '') + '">' + (value != null ? value : '—') + '</div></div>';
   }
-  function section(title, metrics) {
-    return '<div class="eq-data-section"><div class="eq-data-section-title">' + title + '</div><div class="eq-metrics-grid">' + metrics.join('') + '</div></div>';
+  function section(title, metrics, note) {
+    return '<div class="eq-data-section"><div class="eq-data-section-title">' + title + (note ? '<span class="eq-data-source">' + note + '</span>' : '') + '</div><div class="eq-metrics-grid">' + metrics.join('') + '</div></div>';
   }
+  function px(v) { return v != null ? '$' + v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; }
 
-  const price = v7?.regularMarketPrice ?? getRaw(prc.regularMarketPrice) ?? chartMeta?.regularMarketPrice;
-  const _prev = chartMeta?.previousClose || chartMeta?.chartPreviousClose;
-  const change = v7?.regularMarketChange ?? getRaw(prc.regularMarketChange) ?? (price != null && _prev != null ? price - _prev : null);
+  // ── Price & market data — always from Yahoo v7 / chartMeta ──
+  const prc = fund?._source !== 'edgar' ? (fund?.price || {}) : {};
+  const sum = fund?._source !== 'edgar' ? (fund?.summaryDetail || {}) : {};
+  const price   = v7?.regularMarketPrice   ?? getRaw(prc.regularMarketPrice)   ?? chartMeta?.regularMarketPrice;
+  const _prev   = chartMeta?.previousClose || chartMeta?.chartPreviousClose;
+  const change  = v7?.regularMarketChange  ?? getRaw(prc.regularMarketChange)  ?? (price != null && _prev != null ? price - _prev : null);
   const changePct = v7?.regularMarketChangePercent ?? getRaw(prc.regularMarketChangePercent) ?? (change != null && _prev ? change / _prev : null);
-  const vol = v7?.regularMarketVolume ?? getRaw(prc.regularMarketVolume) ?? chartMeta?.regularMarketVolume;
-  const avgVol = v7?.averageDailyVolume3Month ?? getRaw(prc.averageDailyVolume3Month) ?? getRaw(sum.averageDailyVolume3Month);
-  const mktCap = v7?.marketCap ?? getRaw(prc.marketCap) ?? getRaw(sum.marketCap);
-  const sharesOut = v7?.sharesOutstanding ?? getRaw(prc.sharesOutstanding);
-  const high52 = v7?.fiftyTwoWeekHigh ?? getRaw(sum.fiftyTwoWeekHigh) ?? chartMeta?.fiftyTwoWeekHigh;
-  const low52 = v7?.fiftyTwoWeekLow ?? getRaw(sum.fiftyTwoWeekLow) ?? chartMeta?.fiftyTwoWeekLow;
-  const trPE = v7?.trailingPE ?? getRaw(prc.trailingPE) ?? getRaw(sum.trailingPE);
-  const fwdPE = v7?.forwardPE ?? getRaw(prc.forwardPE) ?? getRaw(sum.forwardPE);
-  const pb = v7?.priceToBook ?? getRaw(prc.priceToBook) ?? getRaw(sum.priceToBook);
-  const eps = v7?.epsTrailingTwelveMonths ?? getRaw(prc.epsTrailingTwelveMonths);
-  const beta = v7?.beta ?? getRaw(sum.beta);
-  const ps = getRaw(stats.priceToSalesTrailing12Months);
-  const evEbitda = getRaw(stats.enterpriseToEbitda);
-  const fcfRaw = getRaw(fin.freeCashflow);
-  const pfcf = (mktCap && fcfRaw && fcfRaw > 0) ? mktCap / fcfRaw : null;
-  const grossM = getRaw(fin.grossMargins);
-  const opM = getRaw(fin.operatingMargins);
-  const netM = getRaw(fin.profitMargins);
-  const roe = getRaw(fin.returnOnEquity);
-  const roa = getRaw(fin.returnOnAssets);
-  const de = getRaw(fin.debtToEquity);
-  const cr = getRaw(fin.currentRatio);
-  const rev = getRaw(fin.totalRevenue);
+  const vol     = v7?.regularMarketVolume  ?? getRaw(prc.regularMarketVolume)  ?? chartMeta?.regularMarketVolume;
+  const avgVol  = v7?.averageDailyVolume3Month ?? getRaw(prc.averageDailyVolume3Month) ?? getRaw(sum.averageDailyVolume3Month);
+  const high52  = v7?.fiftyTwoWeekHigh ?? getRaw(sum.fiftyTwoWeekHigh) ?? chartMeta?.fiftyTwoWeekHigh;
+  const low52   = v7?.fiftyTwoWeekLow  ?? getRaw(sum.fiftyTwoWeekLow)  ?? chartMeta?.fiftyTwoWeekLow;
+  const beta    = v7?.beta ?? getRaw(sum.beta);
+  const fwdPE   = v7?.forwardPE ?? getRaw(prc.forwardPE) ?? getRaw(sum.forwardPE);
+  const exchange = v7?.fullExchangeName || v7?.exchange || chartMeta?.fullExchangeName || '—';
+
+  // Range-aware change metric
   const useRange = eqRangeChangeAmt != null;
-  const dispChange = useRange ? eqRangeChangeAmt : change;
-  const dispChangePct = useRange ? eqRangeChangePct : changePct;
-  const changeLabel = useRange ? 'Chg (' + eqCurrentRange + ')' : 'Change';
+  const dispChange    = useRange ? eqRangeChangeAmt  : change;
+  const dispChangePct = useRange ? eqRangeChangePct  : changePct;
+  const changeLabel   = useRange ? 'Chg (' + eqCurrentRange + ')' : 'Change';
   const upDown = (dispChange || 0) >= 0;
   const changeStr = dispChange != null
     ? (upDown ? '+' : '') + dispChange.toFixed(2) + ' (' + (upDown ? '+' : '') + ((dispChangePct || 0) * 100).toFixed(2) + '%)'
     : '—';
 
+  // ── EDGAR path ──
+  if (fund?._source === 'edgar') {
+    const sharesOut = fund.sharesOut ?? v7?.sharesOutstanding;
+    const mktCap    = v7?.marketCap ?? (price && sharesOut ? price * sharesOut : null);
+
+    // Compute valuation ratios from live price + EDGAR data
+    const calcEPS   = fund.epsDiluted ?? (fund.netIncome && sharesOut ? fund.netIncome / sharesOut : null);
+    const pe        = price && calcEPS && calcEPS > 0 ? price / calcEPS : null;
+    const ps        = mktCap && fund.revenue  && fund.revenue  > 0 ? mktCap / fund.revenue  : null;
+    const pb        = mktCap && fund.equity   && fund.equity   > 0 ? mktCap / fund.equity   : null;
+    const pfcf      = mktCap && fund.freeCashFlow && fund.freeCashFlow > 0 ? mktCap / fund.freeCashFlow : null;
+    const ev        = mktCap != null && fund.netDebt != null ? mktCap + fund.netDebt : null;
+    const evEbitda  = ev && fund.ebitda && fund.ebitda > 0 ? ev / fund.ebitda : null;
+
+    el.innerHTML =
+      section('Price & Market', [
+        metric('Price', px(price)),
+        metric(changeLabel, changeStr, upDown ? 'good' : 'bad', 'eq-metric-change'),
+        metric('Volume', fmtFinNum(vol)),
+        metric('Avg Volume', fmtFinNum(avgVol)),
+        metric('Market Cap', '$' + fmtFinNum(mktCap)),
+        metric('Shares Out', fmtFinNum(sharesOut)),
+        metric('52W High', px(high52)),
+        metric('52W Low',  px(low52)),
+      ]) +
+      section('Valuation', [
+        metric('P/E (TTM)', pe != null ? pe.toFixed(1) + 'x' : '—', pe != null && pe > 0 && pe < 25 ? 'good' : pe != null && pe < 40 ? 'warn' : ''),
+        metric('Forward P/E', fwdPE != null ? fwdPE.toFixed(1) + 'x' : '—', fwdPE != null && fwdPE > 0 && fwdPE < 20 ? 'good' : fwdPE != null && fwdPE < 35 ? 'warn' : ''),
+        metric('P/S', ps != null ? ps.toFixed(2) + 'x' : '—', ps != null && ps > 0 && ps < 5 ? 'good' : ps != null && ps < 10 ? 'warn' : ''),
+        metric('P/B', pb != null ? pb.toFixed(2) + 'x' : '—', pb != null && pb > 0 && pb < 3 ? 'good' : pb != null && pb < 6 ? 'warn' : ''),
+        metric('P/FCF', pfcf != null ? pfcf.toFixed(1) + 'x' : '—', pfcf != null && pfcf > 0 && pfcf < 25 ? 'good' : pfcf != null && pfcf < 50 ? 'warn' : ''),
+        metric('EV/EBITDA', evEbitda != null ? evEbitda.toFixed(1) + 'x' : '—', evEbitda != null && evEbitda > 0 && evEbitda < 15 ? 'good' : evEbitda != null && evEbitda < 25 ? 'warn' : ''),
+      ], 'GAAP · EDGAR') +
+      section('Profitability', [
+        metric('Gross Margin', fmtPct(fund.grossMargin), fund.grossMargin != null && fund.grossMargin > 0.40 ? 'good' : fund.grossMargin != null && fund.grossMargin > 0.20 ? 'warn' : ''),
+        metric('Op Margin',   fmtPct(fund.opMargin),    fund.opMargin   != null && fund.opMargin   > 0.15 ? 'good' : fund.opMargin   != null && fund.opMargin   > 0.05 ? 'warn' : ''),
+        metric('Net Margin',  fmtPct(fund.netMargin),   fund.netMargin  != null && fund.netMargin  > 0.10 ? 'good' : fund.netMargin  != null && fund.netMargin  > 0.02 ? 'warn' : ''),
+        metric('ROE', fmtPct(fund.roe), fund.roe != null && fund.roe > 0.15 ? 'good' : fund.roe != null && fund.roe > 0.05 ? 'warn' : ''),
+        metric('ROA', fmtPct(fund.roa), fund.roa != null && fund.roa > 0.05 ? 'good' : fund.roa != null && fund.roa > 0.01 ? 'warn' : ''),
+        metric('Revenue (TTM)', '$' + fmtFinNum(fund.revenue)),
+      ], 'GAAP · EDGAR') +
+      section('Financial Health', [
+        metric('Debt/Equity', fund.debtToEquity != null ? fund.debtToEquity.toFixed(2) + 'x' : '—', fund.debtToEquity != null && fund.debtToEquity < 0.5 ? 'good' : fund.debtToEquity != null && fund.debtToEquity < 1.5 ? 'warn' : fund.debtToEquity != null ? 'bad' : ''),
+        metric('Current Ratio', fund.currentRatio != null ? fund.currentRatio.toFixed(2) + 'x' : '—', fund.currentRatio != null && fund.currentRatio > 1.5 ? 'good' : fund.currentRatio != null && fund.currentRatio > 1 ? 'warn' : fund.currentRatio != null ? 'bad' : ''),
+        metric('Free Cash Flow', '$' + fmtFinNum(fund.freeCashFlow), fund.freeCashFlow != null && fund.freeCashFlow > 0 ? 'good' : fund.freeCashFlow != null ? 'bad' : ''),
+        metric('EPS (TTM)', fund.epsDiluted != null ? '$' + fund.epsDiluted.toFixed(2) : '—', fund.epsDiluted != null && fund.epsDiluted > 0 ? 'good' : fund.epsDiluted != null ? 'bad' : ''),
+        metric('Beta', beta != null ? beta.toFixed(2) : '—', beta != null && beta < 1.5 ? 'good' : beta != null && beta < 2.5 ? 'warn' : ''),
+        metric('Exchange', exchange),
+      ], 'GAAP · EDGAR');
+    return;
+  }
+
+  // ── Legacy path (Finnhub fallback) ──
+  const fin   = fund?.financialData        || {};
+  const stats = fund?.defaultKeyStatistics || {};
+  const mktCap   = v7?.marketCap ?? getRaw(prc.marketCap) ?? getRaw(sum.marketCap);
+  const sharesOut = v7?.sharesOutstanding  ?? getRaw(prc.sharesOutstanding);
+  const trPE  = v7?.trailingPE ?? getRaw(prc.trailingPE) ?? getRaw(sum.trailingPE);
+  const pb    = v7?.priceToBook ?? getRaw(prc.priceToBook) ?? getRaw(sum.priceToBook);
+  const eps   = v7?.epsTrailingTwelveMonths ?? getRaw(prc.epsTrailingTwelveMonths);
+  const ps    = getRaw(stats.priceToSalesTrailing12Months);
+  const evEbitda = getRaw(stats.enterpriseToEbitda);
+  const fcfRaw   = getRaw(fin.freeCashflow);
+  const pfcf  = (mktCap && fcfRaw && fcfRaw > 0) ? mktCap / fcfRaw : null;
+  const grossM = getRaw(fin.grossMargins);
+  const opM    = getRaw(fin.operatingMargins);
+  const netM   = getRaw(fin.profitMargins);
+  const roe    = getRaw(fin.returnOnEquity);
+  const roa    = getRaw(fin.returnOnAssets);
+  const de     = getRaw(fin.debtToEquity);
+  const cr     = getRaw(fin.currentRatio);
+  const rev    = getRaw(fin.totalRevenue);
+
   el.innerHTML =
     section('Price & Market', [
-      metric('Price', price != null ? '$' + price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'),
+      metric('Price', px(price)),
       metric(changeLabel, changeStr, upDown ? 'good' : 'bad', 'eq-metric-change'),
       metric('Volume', fmtFinNum(vol)),
       metric('Avg Volume', fmtFinNum(avgVol)),
       metric('Market Cap', '$' + fmtFinNum(mktCap)),
       metric('Shares Out', fmtFinNum(sharesOut)),
-      metric('52W High', high52 != null ? '$' + high52.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'),
-      metric('52W Low', low52 != null ? '$' + low52.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'),
+      metric('52W High', px(high52)),
+      metric('52W Low',  px(low52)),
     ]) +
     section('Valuation', [
       metric('P/E (TTM)', trPE != null ? trPE.toFixed(1) + 'x' : '—', trPE != null && trPE > 0 && trPE < 25 ? 'good' : trPE != null && trPE < 40 ? 'warn' : ''),
@@ -192,8 +251,8 @@ function renderDataPanel(v7, fund, chartMeta) {
     ]) +
     section('Profitability', [
       metric('Gross Margin', fmtPct(grossM), grossM != null && grossM > 0.40 ? 'good' : grossM != null && grossM > 0.20 ? 'warn' : ''),
-      metric('Op Margin', fmtPct(opM), opM != null && opM > 0.15 ? 'good' : opM != null && opM > 0.05 ? 'warn' : ''),
-      metric('Net Margin', fmtPct(netM), netM != null && netM > 0.10 ? 'good' : netM != null && netM > 0.02 ? 'warn' : ''),
+      metric('Op Margin',   fmtPct(opM),    opM    != null && opM    > 0.15 ? 'good' : opM    != null && opM    > 0.05 ? 'warn' : ''),
+      metric('Net Margin',  fmtPct(netM),   netM   != null && netM   > 0.10 ? 'good' : netM   != null && netM   > 0.02 ? 'warn' : ''),
       metric('ROE', fmtPct(roe), roe != null && roe > 0.15 ? 'good' : roe != null && roe > 0.05 ? 'warn' : ''),
       metric('ROA', fmtPct(roa), roa != null && roa > 0.05 ? 'good' : roa != null && roa > 0.01 ? 'warn' : ''),
       metric('Revenue', '$' + fmtFinNum(rev)),
@@ -204,7 +263,7 @@ function renderDataPanel(v7, fund, chartMeta) {
       metric('Free Cash Flow', '$' + fmtFinNum(fcfRaw), fcfRaw != null && fcfRaw > 0 ? 'good' : fcfRaw != null ? 'bad' : ''),
       metric('EPS (TTM)', eps != null ? '$' + eps.toFixed(2) : '—', eps != null && eps > 0 ? 'good' : eps != null ? 'bad' : ''),
       metric('Beta', beta != null ? beta.toFixed(2) : '—', beta != null && beta < 1.5 ? 'good' : beta != null && beta < 2.5 ? 'warn' : ''),
-      metric('Exchange', v7?.fullExchangeName || v7?.exchange || getRaw(prc.exchangeName) || chartMeta?.fullExchangeName || chartMeta?.exchangeName || '—'),
+      metric('Exchange', exchange),
     ]);
 }
 
@@ -523,19 +582,20 @@ export async function loadEquityStock(symbol) {
       renderDataPanel(_v7, _fund, _chartMeta);
     }).catch(() => {});
 
-  fetchFinnhubFundamentals(symbol)
-    .then(fhFund => {
-      if (fhFund) {
-        _fund = fhFund;
-        buildHeader(_v7, _chartMeta, _fund);
+  // Try EDGAR first (authoritative GAAP data), fall back to Finnhub for non-US/ETFs
+  fetchEdgarFundamentals(symbol)
+    .then(edgarFund => {
+      if (edgarFund) {
+        _fund = edgarFund;
         renderDataPanel(_v7, _fund, _chartMeta);
       } else {
-        return fetchFundamentals(symbol);
+        return fetchFinnhubFundamentals(symbol);
       }
     })
-    .then(yFund => {
-      if (yFund && !_fund) {
-        _fund = yFund;
+    .then(fhFund => {
+      if (fhFund && !_fund) {
+        _fund = fhFund;
+        buildHeader(_v7, _chartMeta, _fund);
         renderDataPanel(_v7, _fund, _chartMeta);
       }
     }).catch(() => {});

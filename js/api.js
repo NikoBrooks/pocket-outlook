@@ -204,6 +204,171 @@ export async function fetchFundamentals(symbol) {
   return null;
 }
 
+// ── SEC EDGAR Fundamentals ──
+let _edgarCikCache = null;
+
+async function getEdgarCik(ticker) {
+  if (!_edgarCikCache) {
+    try {
+      const res = await fetchWithTimeout('https://data.sec.gov/files/company_tickers.json', {}, 12000);
+      if (!res.ok) return null;
+      _edgarCikCache = await res.json();
+    } catch(e) { return null; }
+  }
+  const upper = ticker.toUpperCase();
+  for (const entry of Object.values(_edgarCikCache)) {
+    if (entry.ticker.toUpperCase() === upper) return String(entry.cik_str).padStart(10, '0');
+  }
+  return null;
+}
+
+export async function fetchEdgarFundamentals(ticker) {
+  try {
+    const cik = await getEdgarCik(ticker);
+    if (!cik) return null;
+
+    const res = await fetchWithTimeout(
+      'https://data.sec.gov/api/xbrl/companyfacts/CIK' + cik + '.json', {}, 20000
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const gaap = data?.facts?.['us-gaap'] || {};
+
+    function getUSD(tag) { return gaap[tag]?.units?.USD || []; }
+    function getUSDps(tag) { return gaap[tag]?.units?.['USD/shares'] || []; }
+    function getShares(tag) { return gaap[tag]?.units?.shares || []; }
+
+    function filterPeriod(entries) {
+      return entries.filter(e =>
+        (e.form === '10-Q' || e.form === '10-K') && e.val != null && e.start
+      );
+    }
+    function filterInstant(entries) {
+      return entries.filter(e =>
+        (e.form === '10-Q' || e.form === '10-K') && e.val != null
+      );
+    }
+    function days(e) { return (new Date(e.end) - new Date(e.start)) / 86400000; }
+
+    function mostRecent(entries) {
+      const f = filterInstant(entries).sort((a, b) => new Date(b.end) - new Date(a.end));
+      return f[0]?.val ?? null;
+    }
+
+    function ttm(entries) {
+      // Sort by end date desc, then prefer longer periods (cumulative over standalone quarterly)
+      const f = filterPeriod(entries).sort((a, b) => {
+        const ed = new Date(b.end) - new Date(a.end);
+        return ed !== 0 ? ed : days(b) - days(a);
+      });
+      if (!f.length) return null;
+
+      // Most recent annual (10-K, ~365-day period)
+      const recentK = f.find(e => e.form === '10-K' && days(e) > 340);
+      // Most recent cumulative quarterly (10-Q, period > 60 days picks cumulative, not standalone Q3)
+      const recentQ = f.find(e => e.form === '10-Q' && days(e) > 60);
+
+      if (!recentQ && !recentK) return null;
+      if (!recentQ) return recentK.val;
+      // If annual is more recent (or equal), use it directly
+      if (!recentK || new Date(recentK.end) >= new Date(recentQ.end)) return recentK?.val ?? null;
+
+      // Annual is older than quarterly → compute TTM = annual + recentQ - priorYearQ
+      const qDate = new Date(recentQ.end);
+      const qDays = days(recentQ);
+      const priorQ = f.find(e => {
+        if (e.form !== '10-Q') return false;
+        const diff = (qDate - new Date(e.end)) / 86400000;
+        return diff > 300 && diff < 420 && Math.abs(days(e) - qDays) < 30;
+      });
+      if (!priorQ) {
+        if (recentK) return recentK.val;
+        return recentQ.val * (365 / qDays);
+      }
+      return recentK.val + recentQ.val - priorQ.val;
+    }
+
+    function first(tagFns) {
+      for (const [tag, fn, getter] of tagFns) {
+        const v = ttm((getter || getUSD)(tag));
+        if (v != null) return v;
+      }
+      return null;
+    }
+
+    // ── Income statement (TTM) ──
+    const revenue = first([
+      ['RevenueFromContractWithCustomerExcludingAssessedTax'],
+      ['Revenues'],
+      ['SalesRevenueNet'],
+      ['RevenueFromContractWithCustomerIncludingAssessedTax'],
+    ]);
+    const grossProfit = first([['GrossProfit']]);
+    const operatingIncome = first([['OperatingIncomeLoss']]);
+    const netIncome = first([['NetIncomeLoss'], ['NetIncomeLossAvailableToCommonStockholdersBasic']]);
+    const da = first([['DepreciationDepletionAndAmortization'], ['DepreciationAndAmortization'], ['Depreciation']]);
+
+    // EPS uses USD/shares units
+    let epsDiluted = null;
+    for (const tag of ['EarningsPerShareDiluted', 'EarningsPerShareBasic']) {
+      const v = ttm(getUSDps(tag));
+      if (v != null) { epsDiluted = v; break; }
+    }
+
+    // ── Cash flow (TTM) ──
+    const operatingCF = first([['NetCashProvidedByUsedInOperatingActivities']]);
+    const capexRaw = first([
+      ['PaymentsToAcquirePropertyPlantAndEquipment'],
+      ['CapitalExpenditureContinuingOperations'],
+      ['PaymentsForCapitalImprovements'],
+    ]);
+    const capex = capexRaw != null ? Math.abs(capexRaw) : null;
+    const freeCashFlow = operatingCF != null && capex != null ? operatingCF - capex : null;
+
+    // ── Balance sheet (most recent) ──
+    const totalAssets = mostRecent(getUSD('Assets'));
+    const currentAssets = mostRecent(getUSD('AssetsCurrent'));
+    const currentLiabilities = mostRecent(getUSD('LiabilitiesCurrent'));
+    const totalLiabilities = mostRecent(getUSD('Liabilities'));
+    let equity = mostRecent(getUSD('StockholdersEquity'));
+    if (equity == null) equity = mostRecent(getUSD('StockholdersEquityAttributableToParent'));
+    let cash = mostRecent(getUSD('CashAndCashEquivalentsAtCarryingValue'));
+    if (cash == null) cash = mostRecent(getUSD('CashCashEquivalentsAndShortTermInvestments'));
+    let longTermDebt = mostRecent(getUSD('LongTermDebt'));
+    if (longTermDebt == null) longTermDebt = mostRecent(getUSD('LongTermDebtNoncurrent'));
+
+    // Shares outstanding (shares units)
+    let sharesOut = null;
+    for (const tag of ['CommonStockSharesOutstanding', 'SharesOutstanding']) {
+      const entries = filterInstant(getShares(tag)).sort((a, b) => new Date(b.end) - new Date(a.end));
+      if (entries.length) { sharesOut = entries[0].val; break; }
+    }
+
+    // ── Computed ──
+    const grossMargin  = grossProfit != null && revenue  ? grossProfit / revenue  : null;
+    const opMargin     = operatingIncome != null && revenue ? operatingIncome / revenue : null;
+    const netMargin    = netIncome != null && revenue    ? netIncome / revenue    : null;
+    const roe          = netIncome != null && equity && equity !== 0 ? netIncome / equity : null;
+    const roa          = netIncome != null && totalAssets ? netIncome / totalAssets : null;
+    const currentRatio = currentAssets != null && currentLiabilities ? currentAssets / currentLiabilities : null;
+    const debtToEquity = longTermDebt != null && equity && equity > 0 ? longTermDebt / equity : null;
+    const ebitda       = operatingIncome != null && da != null ? operatingIncome + da : operatingIncome;
+    const netDebt      = longTermDebt != null && cash != null ? longTermDebt - cash : null;
+
+    return {
+      _source: 'edgar',
+      revenue, grossProfit, operatingIncome, netIncome, epsDiluted, da, ebitda,
+      operatingCF, freeCashFlow,
+      totalAssets, currentAssets, currentLiabilities, totalLiabilities,
+      equity, cash, longTermDebt, sharesOut, netDebt,
+      grossMargin, opMargin, netMargin, roe, roa, currentRatio, debtToEquity,
+    };
+  } catch(e) {
+    console.warn('EDGAR fetch failed:', e);
+    return null;
+  }
+}
+
 export async function fetchEqChartData(symbol, range, interval) {
   let data;
   for (const proxy of CHART_PROXIES) {
