@@ -11,6 +11,7 @@ let eqCurrentRange = '1y', eqCurrentInterval = '1d';
 let eqChartType = 'line';
 let eqRangeChangeAmt = null, eqRangeChangePct = null;
 let watchlistGroups = [];
+let _panelSources = {};
 
 // ── Watchlist Persistence ──
 function loadWatchlistGroups() {
@@ -119,6 +120,48 @@ export async function renderWatchlist() {
   }
 }
 
+// ── Source Popup ──
+function showSourcePop(anchor, src) {
+  document.getElementById('eq-src-pop')?.remove();
+  const pop = document.createElement('div');
+  pop.id = 'eq-src-pop';
+  pop.className = 'eq-src-pop';
+
+  let html = '';
+  if (src.type === 'yahoo') {
+    html = '<div class="eq-src-badge yahoo">Yahoo Finance</div>' +
+           '<div class="eq-src-desc">' + (src.desc || 'Real-time market data') + '</div>';
+  } else if (src.type === 'computed') {
+    html = '<div class="eq-src-badge computed">Computed</div>' +
+           '<div class="eq-src-desc">' + (src.formula || '') + '</div>';
+  } else if (src.type === 'edgar') {
+    const accnUrl = src.cik && src.accn
+      ? 'https://www.sec.gov/Archives/edgar/data/' + src.cik + '/' + src.accn.replace(/-/g, '') + '/'
+      : null;
+    html = '<div class="eq-src-badge edgar">SEC EDGAR</div>' +
+           '<div class="eq-src-row"><span class="eq-src-lbl">Tag</span><span class="eq-src-val mono">' + (src.tag || '') + '</span></div>' +
+           '<div class="eq-src-row"><span class="eq-src-lbl">Form</span><span class="eq-src-val">' + (src.form || '') + ' · ' + (src.period || '') + '</span></div>' +
+           '<div class="eq-src-row"><span class="eq-src-lbl">Period end</span><span class="eq-src-val">' + (src.end || '') + '</span></div>' +
+           '<div class="eq-src-row"><span class="eq-src-lbl">Filed</span><span class="eq-src-val">' + (src.filed || '') + '</span></div>' +
+           '<div class="eq-src-row"><span class="eq-src-lbl">Method</span><span class="eq-src-val">' + (src.method || '') + '</span></div>' +
+           (accnUrl ? '<a class="eq-src-link" href="' + accnUrl + '" target="_blank" rel="noopener">View filing →</a>' : '');
+  }
+
+  pop.innerHTML = html;
+  document.body.appendChild(pop);
+
+  // Position near anchor
+  const rect = anchor.getBoundingClientRect();
+  const pw = 240;
+  let left = rect.right + 8;
+  if (left + pw > window.innerWidth - 8) left = rect.left - pw - 8;
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top  = Math.max(8, rect.top) + 'px';
+
+  const close = e => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', close); } };
+  setTimeout(() => document.addEventListener('click', close), 0);
+}
+
 // ── Data Panel ──
 function renderDataPanel(v7, fund, chartMeta) {
   const el = document.getElementById('eq-data-col');
@@ -161,51 +204,100 @@ function renderDataPanel(v7, fund, chartMeta) {
   if (fund?._source === 'edgar') {
     const sharesOut = fund.sharesOut ?? v7?.sharesOutstanding;
     const mktCap    = v7?.marketCap ?? (price && sharesOut ? price * sharesOut : null);
-
-    // Compute valuation ratios from live price + EDGAR data
     const calcEPS   = fund.epsDiluted ?? (fund.netIncome && sharesOut ? fund.netIncome / sharesOut : null);
     const pe        = price && calcEPS && calcEPS > 0 ? price / calcEPS : null;
-    const ps        = mktCap && fund.revenue  && fund.revenue  > 0 ? mktCap / fund.revenue  : null;
-    const pb        = mktCap && fund.equity   && fund.equity   > 0 ? mktCap / fund.equity   : null;
+    const ps        = mktCap && fund.revenue    && fund.revenue    > 0 ? mktCap / fund.revenue    : null;
+    const pb        = mktCap && fund.equity     && fund.equity     > 0 ? mktCap / fund.equity     : null;
     const pfcf      = mktCap && fund.freeCashFlow && fund.freeCashFlow > 0 ? mktCap / fund.freeCashFlow : null;
     const ev        = mktCap != null && fund.netDebt != null ? mktCap + fund.netDebt : null;
     const evEbitda  = ev && fund.ebitda && fund.ebitda > 0 ? ev / fund.ebitda : null;
 
+    // Build source map for this render
+    _panelSources = {};
+    const YS = { type: 'yahoo', desc: 'Yahoo Finance — real-time market data' };
+    const CS = f => ({ type: 'computed', formula: f });
+    _panelSources['eq-m-price']    = YS;
+    _panelSources['eq-m-change']   = YS;
+    _panelSources['eq-m-vol']      = YS;
+    _panelSources['eq-m-avgvol']   = YS;
+    _panelSources['eq-m-mktcap']   = YS;
+    _panelSources['eq-m-sharesout']= fund._sources?.sharesOut || YS;
+    _panelSources['eq-m-high52']   = YS;
+    _panelSources['eq-m-low52']    = YS;
+    _panelSources['eq-m-pe']       = CS('Price ÷ EPS Diluted (EDGAR, TTM)');
+    _panelSources['eq-m-fwdpe']    = { type: 'yahoo', desc: 'Analyst consensus forward EPS — may not be available for all tickers' };
+    _panelSources['eq-m-ps']       = CS('Market Cap ÷ Revenue TTM (EDGAR)');
+    _panelSources['eq-m-pb']       = CS('Market Cap ÷ Stockholders\' Equity (EDGAR)');
+    _panelSources['eq-m-pfcf']     = CS('Market Cap ÷ Free Cash Flow TTM (EDGAR)');
+    _panelSources['eq-m-evEbitda'] = CS('(Market Cap + Net Debt) ÷ EBITDA TTM — EBITDA = Op. Income + D&A (EDGAR)');
+    _panelSources['eq-m-grossMargin'] = fund._sources?.grossMargin;
+    _panelSources['eq-m-opMargin']    = fund._sources?.opMargin;
+    _panelSources['eq-m-netMargin']   = fund._sources?.netMargin;
+    _panelSources['eq-m-roe']         = fund._sources?.roe;
+    _panelSources['eq-m-roa']         = fund._sources?.roa;
+    _panelSources['eq-m-revenue']     = fund._sources?.revenue;
+    _panelSources['eq-m-debtEq']      = fund._sources?.debtToEquity;
+    _panelSources['eq-m-cr']          = fund._sources?.currentRatio;
+    _panelSources['eq-m-fcf']         = fund._sources?.freeCashFlow;
+    _panelSources['eq-m-eps']         = fund._sources?.epsDiluted;
+    _panelSources['eq-m-beta']        = YS;
+    _panelSources['eq-m-exchange']    = YS;
+
+    // Source-tagged metric helper
+    function sm(id, label, value, cls) {
+      const src = _panelSources['eq-m-' + id];
+      const hasSrc = !!src;
+      return '<div class="eq-metric' + (hasSrc ? ' eq-metric-src' : '') + '" id="eq-m-' + id + '">' +
+        '<div class="eq-metric-label">' + label + '</div>' +
+        '<div class="eq-metric-value' + (cls ? ' ' + cls : '') + '">' + (value ?? '—') + '</div></div>';
+    }
+
     el.innerHTML =
       section('Price & Market', [
-        metric('Price', px(price)),
-        metric(changeLabel, changeStr, upDown ? 'good' : 'bad', 'eq-metric-change'),
-        metric('Volume', fmtFinNum(vol)),
-        metric('Avg Volume', fmtFinNum(avgVol)),
-        metric('Market Cap', '$' + fmtFinNum(mktCap)),
-        metric('Shares Out', fmtFinNum(sharesOut)),
-        metric('52W High', px(high52)),
-        metric('52W Low',  px(low52)),
+        sm('price',    'Price',       px(price)),
+        sm('change',   changeLabel,   changeStr, upDown ? 'good' : 'bad'),
+        sm('vol',      'Volume',      fmtFinNum(vol)),
+        sm('avgvol',   'Avg Volume',  fmtFinNum(avgVol)),
+        sm('mktcap',   'Market Cap',  '$' + fmtFinNum(mktCap)),
+        sm('sharesout','Shares Out',  fmtFinNum(sharesOut)),
+        sm('high52',   '52W High',    px(high52)),
+        sm('low52',    '52W Low',     px(low52)),
       ]) +
       section('Valuation', [
-        metric('P/E (TTM)', pe != null ? pe.toFixed(1) + 'x' : '—', pe != null && pe > 0 && pe < 25 ? 'good' : pe != null && pe < 40 ? 'warn' : ''),
-        metric('Forward P/E', fwdPE != null ? fwdPE.toFixed(1) + 'x' : '—', fwdPE != null && fwdPE > 0 && fwdPE < 20 ? 'good' : fwdPE != null && fwdPE < 35 ? 'warn' : ''),
-        metric('P/S', ps != null ? ps.toFixed(2) + 'x' : '—', ps != null && ps > 0 && ps < 5 ? 'good' : ps != null && ps < 10 ? 'warn' : ''),
-        metric('P/B', pb != null ? pb.toFixed(2) + 'x' : '—', pb != null && pb > 0 && pb < 3 ? 'good' : pb != null && pb < 6 ? 'warn' : ''),
-        metric('P/FCF', pfcf != null ? pfcf.toFixed(1) + 'x' : '—', pfcf != null && pfcf > 0 && pfcf < 25 ? 'good' : pfcf != null && pfcf < 50 ? 'warn' : ''),
-        metric('EV/EBITDA', evEbitda != null ? evEbitda.toFixed(1) + 'x' : '—', evEbitda != null && evEbitda > 0 && evEbitda < 15 ? 'good' : evEbitda != null && evEbitda < 25 ? 'warn' : ''),
+        sm('pe',      'P/E (TTM)',   pe      != null ? pe.toFixed(1)      + 'x' : '—', pe      != null && pe      > 0 && pe      < 25 ? 'good' : pe      != null && pe      < 40  ? 'warn' : ''),
+        sm('fwdpe',   'Forward P/E',fwdPE   != null ? fwdPE.toFixed(1)   + 'x' : '—', fwdPE   != null && fwdPE   > 0 && fwdPE   < 20 ? 'good' : fwdPE   != null && fwdPE   < 35  ? 'warn' : ''),
+        sm('ps',      'P/S',        ps      != null ? ps.toFixed(2)       + 'x' : '—', ps      != null && ps      > 0 && ps      < 5  ? 'good' : ps      != null && ps      < 10  ? 'warn' : ''),
+        sm('pb',      'P/B',        pb      != null ? pb.toFixed(2)       + 'x' : '—', pb      != null && pb      > 0 && pb      < 3  ? 'good' : pb      != null && pb      < 6   ? 'warn' : ''),
+        sm('pfcf',    'P/FCF',      pfcf    != null ? pfcf.toFixed(1)     + 'x' : '—', pfcf    != null && pfcf    > 0 && pfcf    < 25 ? 'good' : pfcf    != null && pfcf    < 50  ? 'warn' : ''),
+        sm('evEbitda','EV/EBITDA',  evEbitda!= null ? evEbitda.toFixed(1) + 'x' : '—', evEbitda!= null && evEbitda > 0 && evEbitda < 15 ? 'good' : evEbitda!= null && evEbitda < 25  ? 'warn' : ''),
       ], 'GAAP · EDGAR') +
       section('Profitability', [
-        metric('Gross Margin', fmtPct(fund.grossMargin), fund.grossMargin != null && fund.grossMargin > 0.40 ? 'good' : fund.grossMargin != null && fund.grossMargin > 0.20 ? 'warn' : ''),
-        metric('Op Margin',   fmtPct(fund.opMargin),    fund.opMargin   != null && fund.opMargin   > 0.15 ? 'good' : fund.opMargin   != null && fund.opMargin   > 0.05 ? 'warn' : ''),
-        metric('Net Margin',  fmtPct(fund.netMargin),   fund.netMargin  != null && fund.netMargin  > 0.10 ? 'good' : fund.netMargin  != null && fund.netMargin  > 0.02 ? 'warn' : ''),
-        metric('ROE', fmtPct(fund.roe), fund.roe != null && fund.roe > 0.15 ? 'good' : fund.roe != null && fund.roe > 0.05 ? 'warn' : ''),
-        metric('ROA', fmtPct(fund.roa), fund.roa != null && fund.roa > 0.05 ? 'good' : fund.roa != null && fund.roa > 0.01 ? 'warn' : ''),
-        metric('Revenue (TTM)', '$' + fmtFinNum(fund.revenue)),
+        sm('grossMargin','Gross Margin',fmtPct(fund.grossMargin),fund.grossMargin!=null&&fund.grossMargin>0.40?'good':fund.grossMargin!=null&&fund.grossMargin>0.20?'warn':''),
+        sm('opMargin',  'Op Margin',   fmtPct(fund.opMargin),   fund.opMargin  !=null&&fund.opMargin  >0.15?'good':fund.opMargin  !=null&&fund.opMargin  >0.05?'warn':''),
+        sm('netMargin', 'Net Margin',  fmtPct(fund.netMargin),  fund.netMargin !=null&&fund.netMargin >0.10?'good':fund.netMargin !=null&&fund.netMargin >0.02?'warn':''),
+        sm('roe',       'ROE',         fmtPct(fund.roe),         fund.roe       !=null&&fund.roe       >0.15?'good':fund.roe       !=null&&fund.roe       >0.05?'warn':''),
+        sm('roa',       'ROA',         fmtPct(fund.roa),         fund.roa       !=null&&fund.roa       >0.05?'good':fund.roa       !=null&&fund.roa       >0.01?'warn':''),
+        sm('revenue',   'Revenue (TTM)','$' + fmtFinNum(fund.revenue)),
       ], 'GAAP · EDGAR') +
       section('Financial Health', [
-        metric('Debt/Equity', fund.debtToEquity != null ? fund.debtToEquity.toFixed(2) + 'x' : '—', fund.debtToEquity != null && fund.debtToEquity < 0.5 ? 'good' : fund.debtToEquity != null && fund.debtToEquity < 1.5 ? 'warn' : fund.debtToEquity != null ? 'bad' : ''),
-        metric('Current Ratio', fund.currentRatio != null ? fund.currentRatio.toFixed(2) + 'x' : '—', fund.currentRatio != null && fund.currentRatio > 1.5 ? 'good' : fund.currentRatio != null && fund.currentRatio > 1 ? 'warn' : fund.currentRatio != null ? 'bad' : ''),
-        metric('Free Cash Flow', '$' + fmtFinNum(fund.freeCashFlow), fund.freeCashFlow != null && fund.freeCashFlow > 0 ? 'good' : fund.freeCashFlow != null ? 'bad' : ''),
-        metric('EPS (TTM)', fund.epsDiluted != null ? '$' + fund.epsDiluted.toFixed(2) : '—', fund.epsDiluted != null && fund.epsDiluted > 0 ? 'good' : fund.epsDiluted != null ? 'bad' : ''),
-        metric('Beta', beta != null ? beta.toFixed(2) : '—', beta != null && beta < 1.5 ? 'good' : beta != null && beta < 2.5 ? 'warn' : ''),
-        metric('Exchange', exchange),
+        sm('debtEq','Debt/Equity',  fund.debtToEquity!=null?fund.debtToEquity.toFixed(2)+'x':'—',fund.debtToEquity!=null&&fund.debtToEquity<0.5?'good':fund.debtToEquity!=null&&fund.debtToEquity<1.5?'warn':fund.debtToEquity!=null?'bad':''),
+        sm('cr',    'Current Ratio',fund.currentRatio !=null?fund.currentRatio.toFixed(2) +'x':'—',fund.currentRatio !=null&&fund.currentRatio >1.5?'good':fund.currentRatio !=null&&fund.currentRatio >1?'warn':fund.currentRatio!=null?'bad':''),
+        sm('fcf',   'Free Cash Flow','$'+fmtFinNum(fund.freeCashFlow),fund.freeCashFlow!=null&&fund.freeCashFlow>0?'good':fund.freeCashFlow!=null?'bad':''),
+        sm('eps',   'EPS (TTM)',    fund.epsDiluted!=null?'$'+fund.epsDiluted.toFixed(2):'—',fund.epsDiluted!=null&&fund.epsDiluted>0?'good':fund.epsDiluted!=null?'bad':''),
+        sm('beta',  'Beta',         beta!=null?beta.toFixed(2):'—',beta!=null&&beta<1.5?'good':beta!=null&&beta<2.5?'warn':''),
+        sm('exchange','Exchange',   exchange),
       ], 'GAAP · EDGAR');
+
+    // Wire source click handlers after DOM update
+    el.querySelectorAll('.eq-metric-src').forEach(m => {
+      m.addEventListener('click', e => {
+        const src = _panelSources[m.id];
+        if (src) { showSourcePop(m, src); e.stopPropagation(); }
+      });
+    });
+    // Preserve range-change id
+    const changeEl = el.querySelector('#eq-m-change');
+    if (changeEl) changeEl.id = 'eq-metric-change';
     return;
   }
 

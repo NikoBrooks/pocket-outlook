@@ -233,130 +233,145 @@ export async function fetchEdgarFundamentals(ticker) {
     if (!res.ok) return null;
     const data = await res.json();
     const gaap = data?.facts?.['us-gaap'] || {};
+    const _sources = {};
 
-    function getUSD(tag) { return gaap[tag]?.units?.USD || []; }
-    function getUSDps(tag) { return gaap[tag]?.units?.['USD/shares'] || []; }
-    function getShares(tag) { return gaap[tag]?.units?.shares || []; }
+    const getUSD    = tag => gaap[tag]?.units?.USD          || [];
+    const getUSDps  = tag => gaap[tag]?.units?.['USD/shares'] || [];
+    const getShares = tag => gaap[tag]?.units?.shares       || [];
 
-    function filterPeriod(entries) {
-      return entries.filter(e =>
-        (e.form === '10-Q' || e.form === '10-K') && e.val != null && e.start
-      );
-    }
-    function filterInstant(entries) {
-      return entries.filter(e =>
-        (e.form === '10-Q' || e.form === '10-K') && e.val != null
-      );
-    }
-    function days(e) { return (new Date(e.end) - new Date(e.start)) / 86400000; }
+    const filterPeriod  = es => es.filter(e => (e.form === '10-Q' || e.form === '10-K') && e.val != null && e.start);
+    const filterInstant = es => es.filter(e => (e.form === '10-Q' || e.form === '10-K') && e.val != null);
+    const pd = e => (new Date(e.end) - new Date(e.start)) / 86400000;
 
-    function mostRecent(entries) {
-      const f = filterInstant(entries).sort((a, b) => new Date(b.end) - new Date(a.end));
-      return f[0]?.val ?? null;
-    }
-
-    function ttm(entries) {
-      // Sort by end date desc, then prefer longer periods (cumulative over standalone quarterly)
+    // Returns {val, entry, method} or null
+    function ttmFull(entries) {
       const f = filterPeriod(entries).sort((a, b) => {
-        const ed = new Date(b.end) - new Date(a.end);
-        return ed !== 0 ? ed : days(b) - days(a);
+        const d = new Date(b.end) - new Date(a.end);
+        return d !== 0 ? d : pd(b) - pd(a); // prefer longer (cumulative) periods when same end date
       });
       if (!f.length) return null;
-
-      // Most recent annual (10-K, ~365-day period)
-      const recentK = f.find(e => e.form === '10-K' && days(e) > 340);
-      // Most recent cumulative quarterly (10-Q, period > 60 days picks cumulative, not standalone Q3)
-      const recentQ = f.find(e => e.form === '10-Q' && days(e) > 60);
-
+      const recentK = f.find(e => e.form === '10-K' && pd(e) > 340);
+      const recentQ = f.find(e => e.form === '10-Q' && pd(e) > 60);
       if (!recentQ && !recentK) return null;
-      if (!recentQ) return recentK.val;
-      // If annual is more recent (or equal), use it directly
-      if (!recentK || new Date(recentK.end) >= new Date(recentQ.end)) return recentK?.val ?? null;
-
-      // Annual is older than quarterly → compute TTM = annual + recentQ - priorYearQ
-      const qDate = new Date(recentQ.end);
-      const qDays = days(recentQ);
+      if (!recentQ) return { val: recentK.val, entry: recentK, method: 'Annual' };
+      // Bug fix: when no annual exists, annualize from quarterly rather than returning null
+      if (!recentK) {
+        const d = pd(recentQ);
+        return { val: recentQ.val * (365 / d), entry: recentQ, method: 'Annualized from ' + (recentQ.fp || 'Q') };
+      }
+      if (new Date(recentK.end) >= new Date(recentQ.end)) {
+        return { val: recentK.val, entry: recentK, method: 'Annual' };
+      }
+      // TTM = Annual + recentQ − prior-year same period
+      const qDate = new Date(recentQ.end), qd = pd(recentQ);
       const priorQ = f.find(e => {
         if (e.form !== '10-Q') return false;
         const diff = (qDate - new Date(e.end)) / 86400000;
-        return diff > 300 && diff < 420 && Math.abs(days(e) - qDays) < 30;
+        return diff > 300 && diff < 420 && Math.abs(pd(e) - qd) < 30;
       });
-      if (!priorQ) {
-        if (recentK) return recentK.val;
-        return recentQ.val * (365 / qDays);
-      }
-      return recentK.val + recentQ.val - priorQ.val;
+      if (!priorQ) return { val: recentK.val, entry: recentK, method: 'Annual (prior-year Q unavailable)' };
+      return {
+        val: recentK.val + recentQ.val - priorQ.val,
+        entry: recentK,
+        method: 'TTM: ' + recentK.end.slice(0,4) + ' annual + ' + recentQ.fp + ' − prior yr'
+      };
     }
 
-    function first(tagFns) {
-      for (const [tag, fn, getter] of tagFns) {
-        const v = ttm((getter || getUSD)(tag));
-        if (v != null) return v;
+    function mrFull(entries) {
+      const f = filterInstant(entries).sort((a, b) => new Date(b.end) - new Date(a.end));
+      if (!f[0]) return null;
+      return { val: f[0].val, entry: f[0], method: 'Most recent balance sheet' };
+    }
+
+    function saveSrc(key, tag, r) {
+      _sources[key] = {
+        type: 'edgar', tag,
+        form: r.entry.form,
+        period: (r.entry.fp || 'FY') + ' ' + (r.entry.end?.slice(0, 4) || ''),
+        end: r.entry.end,
+        filed: r.entry.filed,
+        accn: r.entry.accn,
+        cik,
+        method: r.method
+      };
+    }
+
+    function getP(key, tags, getter) {   // period (income/CF)
+      for (const tag of tags) {
+        const r = ttmFull((getter || getUSD)(tag));
+        if (r?.val != null) { saveSrc(key, tag, r); return r.val; }
+      }
+      return null;
+    }
+    function getI(key, tags, getter) {   // instant (balance sheet)
+      for (const tag of tags) {
+        const r = mrFull((getter || getUSD)(tag));
+        if (r?.val != null) { saveSrc(key, tag, r); return r.val; }
       }
       return null;
     }
 
     // ── Income statement (TTM) ──
-    const revenue = first([
-      ['RevenueFromContractWithCustomerExcludingAssessedTax'],
-      ['Revenues'],
-      ['SalesRevenueNet'],
-      ['RevenueFromContractWithCustomerIncludingAssessedTax'],
+    const revenue = getP('revenue', [
+      'RevenueFromContractWithCustomerExcludingAssessedTax',
+      'Revenues', 'SalesRevenueNet', 'NetRevenues',
+      'RevenueFromContractWithCustomerIncludingAssessedTax',
+      'SalesRevenueGoodsNet',
     ]);
-    const grossProfit = first([['GrossProfit']]);
-    const operatingIncome = first([['OperatingIncomeLoss']]);
-    const netIncome = first([['NetIncomeLoss'], ['NetIncomeLossAvailableToCommonStockholdersBasic']]);
-    const da = first([['DepreciationDepletionAndAmortization'], ['DepreciationAndAmortization'], ['Depreciation']]);
-
-    // EPS uses USD/shares units
-    let epsDiluted = null;
-    for (const tag of ['EarningsPerShareDiluted', 'EarningsPerShareBasic']) {
-      const v = ttm(getUSDps(tag));
-      if (v != null) { epsDiluted = v; break; }
-    }
+    const grossProfit     = getP('grossProfit',     ['GrossProfit']);
+    const operatingIncome = getP('operatingIncome', ['OperatingIncomeLoss']);
+    const netIncome       = getP('netIncome',       ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic']);
+    const epsDiluted      = getP('epsDiluted',      ['EarningsPerShareDiluted', 'EarningsPerShareBasic'], getUSDps);
+    const da              = getP('da',              [
+      'DepreciationDepletionAndAmortization', 'DepreciationAndAmortization',
+      'Depreciation', 'DepreciationAmortizationAndAccretionNet',
+    ]);
 
     // ── Cash flow (TTM) ──
-    const operatingCF = first([['NetCashProvidedByUsedInOperatingActivities']]);
-    const capexRaw = first([
-      ['PaymentsToAcquirePropertyPlantAndEquipment'],
-      ['CapitalExpenditureContinuingOperations'],
-      ['PaymentsForCapitalImprovements'],
+    const operatingCF = getP('operatingCF', ['NetCashProvidedByUsedInOperatingActivities']);
+    const capexRaw    = getP('capex',       [
+      'PaymentsToAcquirePropertyPlantAndEquipment',
+      'CapitalExpenditureContinuingOperations',
+      'PaymentsForCapitalImprovements',
+      'PaymentsToAcquireProductiveAssets',
     ]);
-    const capex = capexRaw != null ? Math.abs(capexRaw) : null;
+    const capex       = capexRaw != null ? Math.abs(capexRaw) : null;
     const freeCashFlow = operatingCF != null && capex != null ? operatingCF - capex : null;
 
     // ── Balance sheet (most recent) ──
-    const totalAssets = mostRecent(getUSD('Assets'));
-    const currentAssets = mostRecent(getUSD('AssetsCurrent'));
-    const currentLiabilities = mostRecent(getUSD('LiabilitiesCurrent'));
-    const totalLiabilities = mostRecent(getUSD('Liabilities'));
-    let equity = mostRecent(getUSD('StockholdersEquity'));
-    if (equity == null) equity = mostRecent(getUSD('StockholdersEquityAttributableToParent'));
-    let cash = mostRecent(getUSD('CashAndCashEquivalentsAtCarryingValue'));
-    if (cash == null) cash = mostRecent(getUSD('CashCashEquivalentsAndShortTermInvestments'));
-    let longTermDebt = mostRecent(getUSD('LongTermDebt'));
-    if (longTermDebt == null) longTermDebt = mostRecent(getUSD('LongTermDebtNoncurrent'));
-
-    // Shares outstanding (shares units)
-    let sharesOut = null;
-    for (const tag of ['CommonStockSharesOutstanding', 'SharesOutstanding']) {
-      const entries = filterInstant(getShares(tag)).sort((a, b) => new Date(b.end) - new Date(a.end));
-      if (entries.length) { sharesOut = entries[0].val; break; }
-    }
+    const totalAssets        = getI('totalAssets',        ['Assets']);
+    const currentAssets      = getI('currentAssets',      ['AssetsCurrent']);
+    const currentLiabilities = getI('currentLiabilities', ['LiabilitiesCurrent']);
+    const totalLiabilities   = getI('totalLiabilities',   ['Liabilities']);
+    const equity             = getI('equity',             ['StockholdersEquity', 'StockholdersEquityAttributableToParent']);
+    const cash               = getI('cash',               ['CashAndCashEquivalentsAtCarryingValue', 'CashCashEquivalentsAndShortTermInvestments', 'Cash']);
+    const longTermDebt       = getI('longTermDebt',       ['LongTermDebt', 'LongTermDebtNoncurrent']);
+    const sharesOut          = getI('sharesOut',          ['CommonStockSharesOutstanding', 'SharesOutstanding'], getShares);
 
     // ── Computed ──
-    const grossMargin  = grossProfit != null && revenue  ? grossProfit / revenue  : null;
+    const grossMargin  = grossProfit != null && revenue    ? grossProfit / revenue    : null;
     const opMargin     = operatingIncome != null && revenue ? operatingIncome / revenue : null;
-    const netMargin    = netIncome != null && revenue    ? netIncome / revenue    : null;
+    const netMargin    = netIncome != null && revenue      ? netIncome / revenue      : null;
     const roe          = netIncome != null && equity && equity !== 0 ? netIncome / equity : null;
-    const roa          = netIncome != null && totalAssets ? netIncome / totalAssets : null;
+    const roa          = netIncome != null && totalAssets  ? netIncome / totalAssets  : null;
     const currentRatio = currentAssets != null && currentLiabilities ? currentAssets / currentLiabilities : null;
     const debtToEquity = longTermDebt != null && equity && equity > 0 ? longTermDebt / equity : null;
     const ebitda       = operatingIncome != null && da != null ? operatingIncome + da : operatingIncome;
     const netDebt      = longTermDebt != null && cash != null ? longTermDebt - cash : null;
 
+    const cmp = (key, f) => { _sources[key] = { type: 'computed', formula: f }; };
+    if (freeCashFlow != null) cmp('freeCashFlow', 'Operating Cash Flow − Capital Expenditures');
+    if (grossMargin  != null) cmp('grossMargin',  'Gross Profit ÷ Revenue');
+    if (opMargin     != null) cmp('opMargin',     'Operating Income ÷ Revenue');
+    if (netMargin    != null) cmp('netMargin',    'Net Income ÷ Revenue');
+    if (roe          != null) cmp('roe',          'Net Income ÷ Stockholders\' Equity');
+    if (roa          != null) cmp('roa',          'Net Income ÷ Total Assets');
+    if (currentRatio != null) cmp('currentRatio', 'Current Assets ÷ Current Liabilities');
+    if (debtToEquity != null) cmp('debtToEquity', 'Long-Term Debt ÷ Stockholders\' Equity');
+    if (ebitda       != null) cmp('ebitda',       'Operating Income + Depreciation & Amortization');
+
     return {
-      _source: 'edgar',
+      _source: 'edgar', _sources, _cik: cik,
       revenue, grossProfit, operatingIncome, netIncome, epsDiluted, da, ebitda,
       operatingCF, freeCashFlow,
       totalAssets, currentAssets, currentLiabilities, totalLiabilities,
