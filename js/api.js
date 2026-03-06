@@ -183,6 +183,26 @@ export async function fetchYahooV7Quote(symbol) {
   return null;
 }
 
+export async function searchTickers(query) {
+  const q = query.trim();
+  if (!q) return [];
+  const url = 'https://query1.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(q) + '&quotesCount=8&newsCount=0&enableFuzzyQuery=true&quotesQueryId=tss_match_phrase_query';
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetchWithTimeout(proxy + encodeURIComponent(url), {}, 4000);
+      if (!res.ok) continue;
+      const j = await res.json();
+      const quotes = j?.finance?.result?.[0]?.quotes || j?.quotes || [];
+      if (!quotes.length) continue;
+      return quotes
+        .filter(r => r.symbol && (r.quoteType === 'EQUITY' || r.quoteType === 'ETF' || r.quoteType === 'INDEX' || r.quoteType === 'MUTUALFUND'))
+        .slice(0, 7)
+        .map(r => ({ symbol: r.symbol, name: r.longname || r.shortname || r.symbol, type: r.quoteType, exchange: r.exchange }));
+    } catch(e) {}
+  }
+  return [];
+}
+
 export async function fetchFundamentals(symbol) {
   const modules = 'price,summaryDetail,financialData,defaultKeyStatistics';
   const apiUrls = [
@@ -345,7 +365,7 @@ export async function fetchEdgarFundamentals(ticker) {
     const totalLiabilities   = getI('totalLiabilities',   ['Liabilities']);
     const equity             = getI('equity',             ['StockholdersEquity', 'StockholdersEquityAttributableToParent']);
     const cash               = getI('cash',               ['CashAndCashEquivalentsAtCarryingValue', 'CashCashEquivalentsAndShortTermInvestments', 'Cash']);
-    const longTermDebt       = getI('longTermDebt',       ['LongTermDebt', 'LongTermDebtNoncurrent']);
+    const longTermDebt       = getI('longTermDebt',       ['LongTermDebt', 'LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligation', 'LongTermNotesPayable', 'SeniorNotes']);
     const sharesOut          = getI('sharesOut',          ['CommonStockSharesOutstanding', 'SharesOutstanding'], getShares);
 
     // ── Computed ──

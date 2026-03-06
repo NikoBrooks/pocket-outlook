@@ -344,8 +344,10 @@
     <!-- RIGHT: Content Area -->
     <div class="eq-content">
       <div class="eq-search-wrap">
-        <input id="eq-ticker-input" placeholder="Enter ticker (e.g. AAPL, MSFT, NVDA)..."
-               onkeydown="if(event.key==='Enter') loadEquityStock(this.value.trim().toUpperCase())" />
+        <div class="eq-search-input-wrap">
+          <input id="eq-ticker-input" placeholder="Search ticker or company name..." autocomplete="off" />
+          <div id="eq-search-drop" class="eq-search-drop" style="display:none"></div>
+        </div>
         <button onclick="loadEquityStock(document.getElementById('eq-ticker-input').value.trim().toUpperCase())">Analyze →</button>
       </div>
       <div id="eq-stock-header" class="eq-stock-header" style="display:none"></div>
