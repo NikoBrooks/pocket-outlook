@@ -644,20 +644,98 @@ function renderEqCandleChart(ohlcPoints) {
     eqRangeChangePct = first !== 0 ? (last - first) / first : 0;
   }
   const step = Math.max(1, Math.floor(ohlcPoints.length / 200));
-  const sampled = ohlcPoints.filter((_, i) => i % step === 0 || i === ohlcPoints.length - 1);
-  const timeUnit = (eqCurrentInterval === '5m' || eqCurrentInterval === '30m') ? 'hour' : (eqCurrentInterval === '1wk') ? 'month' : 'day';
+  const sampledIdx = [];
+  for (let i = 0; i < ohlcPoints.length; i++) { if (i % step === 0 || i === ohlcPoints.length - 1) sampledIdx.push(i); }
+  const sampled = sampledIdx.map(i => ohlcPoints[i]);
+
+  // EMAs from close prices
+  function calcEMA(prices, period) {
+    const k = 2 / (period + 1);
+    const ema = new Array(prices.length).fill(null);
+    let prev = null, count = 0;
+    for (let i = 0; i < prices.length; i++) {
+      if (prices[i] == null) continue;
+      if (prev === null) { count++; if (count < period) continue; let sum = 0, n = 0; for (let j = 0; j <= i; j++) { if (prices[j] != null) { sum += prices[j]; n++; } } prev = sum / n; }
+      else { prev = prices[i] * k + prev * (1 - k); }
+      ema[i] = prev;
+    }
+    return ema;
+  }
+  const closes = ohlcPoints.map(p => p.c);
+  const ema12Full = calcEMA(closes, 12);
+  const ema26Full = calcEMA(closes, 26);
+  const sampledEma12 = sampledIdx.map((origIdx, j) => ({ x: sampled[j].x, y: ema12Full[origIdx] ?? null }));
+  const sampledEma26 = sampledIdx.map((origIdx, j) => ({ x: sampled[j].x, y: ema26Full[origIdx] ?? null }));
+
+  // Volume — match by timestamp
+  const volMap = new Map((eqVolumePoints || []).map(v => [v.x, v]));
+  const sampledVol = sampled.map(p => ({ x: p.x, y: volMap.get(p.x)?.y ?? 0 }));
+  const sampledVolColors = sampled.map(p => p.c >= p.o ? 'rgba(0,217,126,0.35)' : 'rgba(255,77,106,0.35)');
+  const maxVol = Math.max(...sampledVol.map(v => v.y).filter(v => v > 0), 1);
+
+  // Dynamic time unit
+  const rangeMs = sampled.length > 1 ? sampled[sampled.length - 1].x - sampled[0].x : 86400000;
+  function pickUnit(ms) {
+    if (ms > 90 * 86400000) return 'month';
+    if (ms > 14 * 86400000) return 'week';
+    if (ms > 3 * 86400000) return 'day';
+    if (ms > 12 * 3600000) return 'hour';
+    return 'minute';
+  }
+  const initUnit = pickUnit(rangeMs);
+
   eqChartInstance = new Chart(ctx, {
     type: 'candlestick',
-    data: { datasets: [{ label: eqCurrentSymbol || '', data: sampled, color: { up: '#00d97e', down: '#ff4d6a', unchanged: '#6b6b7a' } }] },
+    data: {
+      datasets: [
+        { label: eqCurrentSymbol || '', data: sampled, color: { up: '#00d97e', down: '#ff4d6a', unchanged: '#6b6b7a' }, yAxisID: 'y', order: 3 },
+        { label: 'EMA 12', type: 'line', data: sampledEma12, borderColor: 'rgba(255,170,0,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, yAxisID: 'y', order: 1 },
+        { label: 'EMA 26', type: 'line', data: sampledEma26, borderColor: 'rgba(100,160,255,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, yAxisID: 'y', order: 2 },
+        { label: 'Volume', type: 'bar', data: sampledVol, backgroundColor: sampledVolColors, borderWidth: 0, yAxisID: 'y2', order: 10 }
+      ]
+    },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
-        tooltip: { backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 10 }, callbacks: { label: ctx => { const d = ctx.raw; if (!d) return ''; return ['O: $' + (d.o||0).toFixed(2) + '   H: $' + (d.h||0).toFixed(2), 'L: $' + (d.l||0).toFixed(2) + '   C: $' + (d.c||0).toFixed(2)]; } } }
+        legend: { display: true, position: 'top', align: 'end', labels: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, boxWidth: 20, boxHeight: 1, padding: 10, usePointStyle: false,
+          filter: item => item.text !== (eqCurrentSymbol || '') && item.text !== 'Volume' } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed',
+          titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 10 },
+          callbacks: { label: item => {
+            if (item.dataset.label === 'Volume') {
+              const v = item.parsed?.y; if (v == null) return null;
+              return ' Vol: ' + (v >= 1e9 ? (v/1e9).toFixed(2)+'B' : v >= 1e6 ? (v/1e6).toFixed(2)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v);
+            }
+            if (item.dataset.label === 'EMA 12' || item.dataset.label === 'EMA 26') {
+              const v = item.parsed?.y; if (v == null) return null;
+              return ' ' + item.dataset.label + ': $' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            const d = item.raw; if (!d) return null;
+            return ['O: $' + (d.o||0).toFixed(2) + '   H: $' + (d.h||0).toFixed(2), 'L: $' + (d.l||0).toFixed(2) + '   C: $' + (d.c||0).toFixed(2)];
+          }}
+        },
+        zoom: {
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x',
+            onZoomComplete({ chart }) {
+              const xScale = chart.scales.x;
+              const unit = pickUnit(xScale.max - xScale.min);
+              if (chart.options.scales.x.time.unit !== unit) { chart.options.scales.x.time.unit = unit; chart.update('none'); }
+            }
+          },
+          limits: { x: { minRange: 15 * 60 * 1000 } }
+        }
       },
       scales: {
-        x: { type: 'time', time: { unit: timeUnit, displayFormats: { hour: 'h:mm a', day: 'MMM d', month: 'MMM yy' } }, ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
-        y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 6, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } }
+        x: { type: 'time', offset: false, bounds: 'data', time: { unit: initUnit, tooltipFormat: 'MMM d, yyyy h:mm a', displayFormats: { minute: 'h:mm a', hour: 'h:mm a', day: 'MMM d', week: 'MMM d', month: "MMM 'yy" } }, ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
+        y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 6, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } },
+        y2: { type: 'linear', position: 'left', min: 0, max: maxVol * 5, grid: { display: false }, border: { display: false },
+          afterBuildTicks(axis) { axis.ticks = [0, Math.round(maxVol / 2), maxVol].map(v => ({ value: v })); },
+          ticks: { color: 'rgba(107,107,122,0.8)', font: { family: "'IBM Plex Mono', monospace", size: 8 },
+            callback: v => { if (v === 0) return '0'; if (v >= 1e9) return (v/1e9).toFixed(1)+'B'; if (v >= 1e6) return (v/1e6).toFixed(1)+'M'; if (v >= 1e3) return (v/1e3).toFixed(0)+'K'; return v; }
+          }
+        }
       }
     }
   });
