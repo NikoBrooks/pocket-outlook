@@ -235,14 +235,22 @@ let _edgarCikCache = null;
 async function getEdgarCik(ticker) {
   if (!_edgarCikCache) {
     try {
-      const res = await fetchWithTimeout('https://data.sec.gov/files/company_tickers.json', {}, 12000);
+      const res = await fetchWithTimeout('https://data.sec.gov/files/company_tickers.json', {}, 20000);
       if (!res.ok) return null;
       _edgarCikCache = await res.json();
     } catch(e) { return null; }
   }
   const upper = ticker.toUpperCase();
-  for (const entry of Object.values(_edgarCikCache)) {
-    if (entry.ticker.toUpperCase() === upper) return String(entry.cik_str).padStart(10, '0');
+  const entries = Object.values(_edgarCikCache);
+  const exact = entries.find(e => e.ticker.toUpperCase() === upper);
+  if (exact) return String(exact.cik_str).padStart(10, '0');
+  // Dual-class share fallback: RUSHA→RUSH, RUSHB→RUSH, GOOGL→GOOG, BRK.A→BRK
+  const variants = [upper.slice(0, -1), upper.replace(/\.[A-Z]$/, '')];
+  for (const v of variants) {
+    if (v && v !== upper) {
+      const match = entries.find(e => e.ticker.toUpperCase() === v);
+      if (match) return String(match.cik_str).padStart(10, '0');
+    }
   }
   return null;
 }
@@ -252,42 +260,78 @@ export async function fetchEdgarFundamentals(ticker) {
     const cik = await getEdgarCik(ticker);
     if (!cik) return null;
 
-    const res = await fetchWithTimeout(
-      'https://data.sec.gov/api/xbrl/companyfacts/CIK' + cik + '.json', {}, 20000
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const gaap = data?.facts?.['us-gaap'] || {};
+    // ── Per-concept API: fetch each concept individually (~10-50KB each) ──
+    // This replaces the old companyfacts approach (5-30MB single file, frequent timeouts).
+    // All 25 requests fire in parallel; browser queues them naturally (~6 at a time via HTTP/2).
+    const base = 'https://data.sec.gov/api/xbrl/companyconcept/CIK' + cik + '/us-gaap/';
     const _sources = {};
 
-    const getUSD    = tag => gaap[tag]?.units?.USD          || [];
-    const getUSDps  = tag => gaap[tag]?.units?.['USD/shares'] || [];
-    const getShares = tag => gaap[tag]?.units?.shares       || [];
+    async function getConcept(tag) {
+      try {
+        const res = await fetchWithTimeout(base + tag + '.json', {}, 10000);
+        return res.ok ? await res.json() : null;
+      } catch(e) { return null; }
+    }
+
+    const [
+      cRev1, cRev2, cRev3, cRev4, cRev5, cRev6,
+      cOpInc, cGrossProfit, cNetInc, cEpsDil,
+      cDa1, cDa2,
+      cOpCF, cCapex1, cCapex2,
+      cCash1, cCash2, cLtDebt1, cLtDebt2,
+      cShares, cCurrentA, cCurrentL, cAssets, cEquity1, cEquity2, cLiab,
+    ] = await Promise.all([
+      getConcept('RevenueFromContractWithCustomerExcludingAssessedTax'),
+      getConcept('RevenueFromContractWithCustomerIncludingAssessedTax'),
+      getConcept('Revenues'),
+      getConcept('SalesRevenueNet'),
+      getConcept('NetRevenues'),
+      getConcept('OperatingRevenue'),
+      getConcept('OperatingIncomeLoss'),
+      getConcept('GrossProfit'),
+      getConcept('NetIncomeLoss'),
+      getConcept('EarningsPerShareDiluted'),
+      getConcept('DepreciationDepletionAndAmortization'),
+      getConcept('DepreciationAndAmortization'),
+      getConcept('NetCashProvidedByUsedInOperatingActivities'),
+      getConcept('PaymentsToAcquirePropertyPlantAndEquipment'),
+      getConcept('CapitalExpenditureContinuingOperations'),
+      getConcept('CashAndCashEquivalentsAtCarryingValue'),
+      getConcept('CashCashEquivalentsAndShortTermInvestments'),
+      getConcept('LongTermDebt'),
+      getConcept('LongTermDebtNoncurrent'),
+      getConcept('CommonStockSharesOutstanding'),
+      getConcept('AssetsCurrent'),
+      getConcept('LiabilitiesCurrent'),
+      getConcept('Assets'),
+      getConcept('StockholdersEquity'),
+      getConcept('StockholdersEquityAttributableToParent'),
+      getConcept('Liabilities'),
+    ]);
+
+    const getUSD    = c => c?.units?.USD             || [];
+    const getUSDps  = c => c?.units?.['USD/shares']  || [];
+    const getSharesU = c => c?.units?.shares          || [];
 
     const filterPeriod  = es => es.filter(e => (e.form === '10-Q' || e.form === '10-K') && e.val != null && e.start);
     const filterInstant = es => es.filter(e => (e.form === '10-Q' || e.form === '10-K') && e.val != null);
     const pd = e => (new Date(e.end) - new Date(e.start)) / 86400000;
 
-    // Returns {val, entry, method} or null
     function ttmFull(entries) {
       const f = filterPeriod(entries).sort((a, b) => {
         const d = new Date(b.end) - new Date(a.end);
-        return d !== 0 ? d : pd(b) - pd(a); // prefer longer (cumulative) periods when same end date
+        return d !== 0 ? d : pd(b) - pd(a);
       });
       if (!f.length) return null;
       const recentK = f.find(e => e.form === '10-K' && pd(e) > 340);
       const recentQ = f.find(e => e.form === '10-Q' && pd(e) > 60);
       if (!recentQ && !recentK) return null;
       if (!recentQ) return { val: recentK.val, entry: recentK, method: 'Annual' };
-      // Bug fix: when no annual exists, annualize from quarterly rather than returning null
       if (!recentK) {
         const d = pd(recentQ);
         return { val: recentQ.val * (365 / d), entry: recentQ, method: 'Annualized from ' + (recentQ.fp || 'Q') };
       }
-      if (new Date(recentK.end) >= new Date(recentQ.end)) {
-        return { val: recentK.val, entry: recentK, method: 'Annual' };
-      }
-      // TTM = Annual + recentQ − prior-year same period
+      if (new Date(recentK.end) >= new Date(recentQ.end)) return { val: recentK.val, entry: recentK, method: 'Annual' };
       const qDate = new Date(recentQ.end), qd = pd(recentQ);
       const priorQ = f.find(e => {
         if (e.form !== '10-Q') return false;
@@ -295,103 +339,78 @@ export async function fetchEdgarFundamentals(ticker) {
         return diff > 300 && diff < 420 && Math.abs(pd(e) - qd) < 30;
       });
       if (!priorQ) return { val: recentK.val, entry: recentK, method: 'Annual (prior-year Q unavailable)' };
-      return {
-        val: recentK.val + recentQ.val - priorQ.val,
-        entry: recentK,
-        method: 'TTM: ' + recentK.end.slice(0,4) + ' annual + ' + recentQ.fp + ' − prior yr'
-      };
+      return { val: recentK.val + recentQ.val - priorQ.val, entry: recentK, method: 'TTM: ' + recentK.end.slice(0,4) + ' annual + ' + recentQ.fp + ' − prior yr' };
     }
 
     function mrFull(entries) {
       const f = filterInstant(entries).sort((a, b) => new Date(b.end) - new Date(a.end));
-      if (!f[0]) return null;
-      return { val: f[0].val, entry: f[0], method: 'Most recent balance sheet' };
+      return f[0] ? { val: f[0].val, entry: f[0], method: 'Most recent balance sheet' } : null;
     }
 
     function saveSrc(key, tag, r) {
-      _sources[key] = {
-        type: 'edgar', tag,
-        form: r.entry.form,
-        period: (r.entry.fp || 'FY') + ' ' + (r.entry.end?.slice(0, 4) || ''),
-        end: r.entry.end,
-        filed: r.entry.filed,
-        accn: r.entry.accn,
-        cik,
-        method: r.method
-      };
+      _sources[key] = { type: 'edgar', tag, form: r.entry.form, period: (r.entry.fp || 'FY') + ' ' + (r.entry.end?.slice(0, 4) || ''), end: r.entry.end, filed: r.entry.filed, accn: r.entry.accn, cik, method: r.method };
     }
 
-    function getP(key, tags, getter) {   // period (income/CF)
-      for (const tag of tags) {
-        const r = ttmFull((getter || getUSD)(tag));
-        if (r?.val != null) { saveSrc(key, tag, r); return r.val; }
-      }
+    function extractP(key, pairs) {
+      for (const [c, tag] of pairs) { const r = ttmFull(getUSD(c)); if (r?.val != null) { saveSrc(key, tag, r); return r.val; } }
       return null;
     }
-    function getI(key, tags, getter) {   // instant (balance sheet)
-      for (const tag of tags) {
-        const r = mrFull((getter || getUSD)(tag));
-        if (r?.val != null) { saveSrc(key, tag, r); return r.val; }
-      }
+    function extractI(key, pairs) {
+      for (const [c, tag] of pairs) { const r = mrFull(getUSD(c)); if (r?.val != null) { saveSrc(key, tag, r); return r.val; } }
+      return null;
+    }
+    function extractPPS(key, pairs) {
+      for (const [c, tag] of pairs) { const r = ttmFull(getUSDps(c)); if (r?.val != null) { saveSrc(key, tag, r); return r.val; } }
+      return null;
+    }
+    function extractISh(key, pairs) {
+      for (const [c, tag] of pairs) { const r = mrFull(getSharesU(c)); if (r?.val != null) { saveSrc(key, tag, r); return r.val; } }
       return null;
     }
 
     // ── Income statement (TTM) ──
-    const revenue = getP('revenue', [
-      // GAAP standard (tech, consumer, services — most S&P 500)
-      'RevenueFromContractWithCustomerExcludingAssessedTax',
-      'RevenueFromContractWithCustomerIncludingAssessedTax',
-      // General industrial / diversified
-      'Revenues', 'NetRevenues', 'TotalRevenues', 'RevenueNet',
-      // Older filings / manufacturing / retail
-      'SalesRevenueNet', 'SalesRevenueGoodsNet', 'SalesRevenueServicesNet', 'NetSales',
-      // Airlines, utilities, transportation
-      'OperatingRevenue',
-      // Banking
-      'InterestAndDividendIncomeOperating', 'RevenuesNetOfInterestExpense',
-      // Insurance
-      'PremiumsEarnedNet',
+    const revenue        = extractP('revenue', [
+      [cRev1, 'RevenueFromContractWithCustomerExcludingAssessedTax'],
+      [cRev2, 'RevenueFromContractWithCustomerIncludingAssessedTax'],
+      [cRev3, 'Revenues'],
+      [cRev4, 'SalesRevenueNet'],
+      [cRev5, 'NetRevenues'],
+      [cRev6, 'OperatingRevenue'],
     ]);
-    const grossProfit     = getP('grossProfit',     ['GrossProfit']);
-    const operatingIncome = getP('operatingIncome', ['OperatingIncomeLoss']);
-    const netIncome       = getP('netIncome',       ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic']);
-    const epsDiluted      = getP('epsDiluted',      ['EarningsPerShareDiluted', 'EarningsPerShareBasic'], getUSDps);
-    const da              = getP('da',              [
-      'DepreciationDepletionAndAmortization', 'DepreciationAndAmortization',
-      'Depreciation', 'DepreciationAmortizationAndAccretionNet',
-    ]);
+    const grossProfit    = extractP('grossProfit',    [[cGrossProfit, 'GrossProfit']]);
+    const operatingIncome = extractP('operatingIncome', [[cOpInc, 'OperatingIncomeLoss']]);
+    const netIncome      = extractP('netIncome',      [[cNetInc, 'NetIncomeLoss']]);
+    const epsDiluted     = extractPPS('epsDiluted',   [[cEpsDil, 'EarningsPerShareDiluted']]);
+    const da             = extractP('da', [[cDa1, 'DepreciationDepletionAndAmortization'], [cDa2, 'DepreciationAndAmortization']]);
 
     // ── Cash flow (TTM) ──
-    const operatingCF = getP('operatingCF', ['NetCashProvidedByUsedInOperatingActivities']);
-    const capexRaw    = getP('capex',       [
-      'PaymentsToAcquirePropertyPlantAndEquipment',
-      'CapitalExpenditureContinuingOperations',
-      'PaymentsForCapitalImprovements',
-      'PaymentsToAcquireProductiveAssets',
-    ]);
-    const capex       = capexRaw != null ? Math.abs(capexRaw) : null;
-    const freeCashFlow = operatingCF != null && capex != null ? operatingCF - capex : null;
+    const operatingCF    = extractP('operatingCF', [[cOpCF, 'NetCashProvidedByUsedInOperatingActivities']]);
+    const capexRaw       = extractP('capex', [[cCapex1, 'PaymentsToAcquirePropertyPlantAndEquipment'], [cCapex2, 'CapitalExpenditureContinuingOperations']]);
+    const capex          = capexRaw != null ? Math.abs(capexRaw) : null;
+    const freeCashFlow   = operatingCF != null && capex != null ? operatingCF - capex : null;
 
     // ── Balance sheet (most recent) ──
-    const totalAssets        = getI('totalAssets',        ['Assets']);
-    const currentAssets      = getI('currentAssets',      ['AssetsCurrent']);
-    const currentLiabilities = getI('currentLiabilities', ['LiabilitiesCurrent']);
-    const totalLiabilities   = getI('totalLiabilities',   ['Liabilities']);
-    const equity             = getI('equity',             ['StockholdersEquity', 'StockholdersEquityAttributableToParent']);
-    const cash               = getI('cash',               ['CashAndCashEquivalentsAtCarryingValue', 'CashCashEquivalentsAndShortTermInvestments', 'Cash']);
-    const longTermDebt       = getI('longTermDebt',       ['LongTermDebt', 'LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligation', 'LongTermNotesPayable', 'SeniorNotes']);
-    const sharesOut          = getI('sharesOut',          ['CommonStockSharesOutstanding', 'SharesOutstanding'], getShares);
+    const totalAssets        = extractI('totalAssets',        [[cAssets, 'Assets']]);
+    const currentAssets      = extractI('currentAssets',      [[cCurrentA, 'AssetsCurrent']]);
+    const currentLiabilities = extractI('currentLiabilities', [[cCurrentL, 'LiabilitiesCurrent']]);
+    const totalLiabilities   = extractI('totalLiabilities',   [[cLiab, 'Liabilities']]);
+    const equity             = extractI('equity',             [[cEquity1, 'StockholdersEquity'], [cEquity2, 'StockholdersEquityAttributableToParent']]);
+    const cash               = extractI('cash',               [[cCash1, 'CashAndCashEquivalentsAtCarryingValue'], [cCash2, 'CashCashEquivalentsAndShortTermInvestments']]);
+    const longTermDebt       = extractI('longTermDebt',       [[cLtDebt1, 'LongTermDebt'], [cLtDebt2, 'LongTermDebtNoncurrent']]);
+    const sharesOut          = extractISh('sharesOut',        [[cShares, 'CommonStockSharesOutstanding']]);
+
+    // Return null if we got nothing useful (e.g. company doesn't file XBRL)
+    if (!revenue && !netIncome && !operatingCF && !totalAssets) return null;
 
     // ── Computed ──
-    const grossMargin  = grossProfit != null && revenue    ? grossProfit / revenue    : null;
+    const grossMargin  = grossProfit != null && revenue     ? grossProfit / revenue     : null;
     const opMargin     = operatingIncome != null && revenue ? operatingIncome / revenue : null;
-    const netMargin    = netIncome != null && revenue      ? netIncome / revenue      : null;
+    const netMargin    = netIncome != null && revenue       ? netIncome / revenue       : null;
     const roe          = netIncome != null && equity && equity !== 0 ? netIncome / equity : null;
-    const roa          = netIncome != null && totalAssets  ? netIncome / totalAssets  : null;
+    const roa          = netIncome != null && totalAssets   ? netIncome / totalAssets   : null;
     const currentRatio = currentAssets != null && currentLiabilities ? currentAssets / currentLiabilities : null;
     const debtToEquity = longTermDebt != null && equity && equity > 0 ? longTermDebt / equity : null;
     const ebitda       = operatingIncome != null && da != null ? operatingIncome + da : operatingIncome;
-    // If cash is known, treat missing LT debt as 0 (company may have no long-term debt)
     const netDebt      = cash != null ? (longTermDebt ?? 0) - cash : (longTermDebt != null ? longTermDebt : null);
 
     const cmp = (key, f) => { _sources[key] = { type: 'computed', formula: f }; };
@@ -405,7 +424,6 @@ export async function fetchEdgarFundamentals(ticker) {
     if (debtToEquity != null) cmp('debtToEquity', 'Long-Term Debt ÷ Stockholders\' Equity');
     if (ebitda       != null) cmp('ebitda',       'Operating Income + Depreciation & Amortization');
 
-    // Try to get company website from EDGAR submissions (lightweight — same domain, no proxy)
     let website = null;
     try {
       const subRes = await fetchWithTimeout('https://data.sec.gov/submissions/CIK' + cik + '.json', {}, 6000);
