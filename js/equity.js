@@ -611,7 +611,7 @@ function renderEqLineChart(points, livePrice, prevClose) {
         }
       },
       scales: {
-        x: { type: 'time', time: { unit: initUnit, tooltipFormat: 'MMM d, yyyy h:mm a', displayFormats: { minute: 'h:mm a', hour: 'h:mm a', day: 'MMM d', week: 'MMM d', month: "MMM 'yy" } }, ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
+        x: { type: 'time', offset: false, bounds: 'data', time: { unit: initUnit, tooltipFormat: 'MMM d, yyyy h:mm a', displayFormats: { minute: 'h:mm a', hour: 'h:mm a', day: 'MMM d', week: 'MMM d', month: "MMM 'yy" } }, ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
         y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 5, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } },
         y2: { type: 'linear', position: 'left', min: 0, max: maxVol * 5, grid: { display: false }, border: { display: false },
           afterBuildTicks(axis) {
