@@ -456,8 +456,8 @@ export async function fetchEqChartData(symbol, range, interval) {
     else if (interval === '1wk') label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
     else label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const prevClose2 = i > 0 ? closes[i - 1] : closes[i];
-    linePoints.push({ x: label, y: closes[i] });
-    volumePoints.push({ x: label, y: volumes[i] || 0, up: closes[i] >= prevClose2 });
+    linePoints.push({ x: ts, y: closes[i] });
+    volumePoints.push({ x: ts, y: volumes[i] || 0, up: closes[i] >= prevClose2 });
     if (opens[i] != null && highs[i] != null && lows[i] != null) {
       ohlcPoints.push({ x: ts, o: opens[i], h: highs[i], l: lows[i], c: closes[i] });
     }
@@ -465,8 +465,9 @@ export async function fetchEqChartData(symbol, range, interval) {
   const livePrice = is1D ? meta.regularMarketPrice : null;
   const prevClose = is1D ? (meta.previousClose || meta.chartPreviousClose) : null;
   if (is1D && livePrice && linePoints.length > 0) {
-    linePoints.push({ x: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }), y: livePrice });
-    volumePoints.push({ x: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }), y: 0, up: true });
+    const nowTs = Date.now();
+    linePoints.push({ x: nowTs, y: livePrice });
+    volumePoints.push({ x: nowTs, y: 0, up: true });
   }
   return { linePoints, ohlcPoints, volumePoints, livePrice, prevClose, meta };
 }

@@ -354,7 +354,7 @@
 /* ── Chart + Data Row ── */
 .eq-chart-data-row {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: 5fr 2fr;
   gap: 10px;
   flex: 1;
   min-height: 0;

@@ -415,9 +415,9 @@ function renderEqLineChart(points, livePrice, prevClose) {
   const sampled = sampledIdx.map(i => points[i]);
 
   const volPoints = (eqVolumePoints.length === points.length) ? eqVolumePoints : [];
-  const sampledVol = sampledIdx.map(i => volPoints[i]?.y ?? 0);
+  const sampledVol = sampledIdx.map((origIdx, j) => ({ x: sampled[j].x, y: volPoints[origIdx]?.y ?? 0 }));
   const sampledVolColors = sampledIdx.map(i => (volPoints[i]?.up !== false) ? 'rgba(0,217,126,0.35)' : 'rgba(255,77,106,0.35)');
-  const maxVol = Math.max(...sampledVol.filter(v => v > 0), 1);
+  const maxVol = Math.max(...sampledVol.map(v => v.y).filter(v => v > 0), 1);
 
   function calcEMA(prices, period) {
     const k = 2 / (period + 1);
@@ -441,8 +441,8 @@ function renderEqLineChart(points, livePrice, prevClose) {
   const closes = points.map(p => p.y);
   const ema12Full = calcEMA(closes, 12);
   const ema26Full = calcEMA(closes, 26);
-  const sampledEma12 = sampledIdx.map(i => ema12Full[i]);
-  const sampledEma26 = sampledIdx.map(i => ema26Full[i]);
+  const sampledEma12 = sampledIdx.map((origIdx, j) => ({ x: sampled[j].x, y: ema12Full[origIdx] ?? null }));
+  const sampledEma26 = sampledIdx.map((origIdx, j) => ({ x: sampled[j].x, y: ema26Full[origIdx] ?? null }));
 
   if (window._eqChartAbort) window._eqChartAbort.abort();
   window._eqChartAbort = new AbortController();
@@ -562,13 +562,22 @@ function renderEqLineChart(points, livePrice, prevClose) {
     }
   };
 
+  const rangeMs = sampled.length > 1 ? sampled[sampled.length - 1].x - sampled[0].x : 86400000;
+  function pickUnit(ms) {
+    if (ms > 90 * 86400000) return 'month';
+    if (ms > 14 * 86400000) return 'week';
+    if (ms > 3 * 86400000) return 'day';
+    if (ms > 12 * 3600000) return 'hour';
+    return 'minute';
+  }
+  const initUnit = pickUnit(rangeMs);
+
   eqChartInstance = new Chart(ctx, {
     type: 'line',
     plugins: [crosshairPlugin],
     data: {
-      labels: sampled.map(p => p.x),
       datasets: [
-        { label: 'Price', data: sampled.map(p => p.y), borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor, yAxisID: 'y', order: 3 },
+        { label: 'Price', data: sampled, borderColor: lineColor, borderWidth: 1.5, backgroundColor: fillColor, fill: true, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: lineColor, yAxisID: 'y', order: 3 },
         { label: 'EMA 12', data: sampledEma12, borderColor: 'rgba(255,170,0,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, yAxisID: 'y', order: 1 },
         { label: 'EMA 26', data: sampledEma26, borderColor: 'rgba(100,160,255,0.75)', borderWidth: 1, backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, pointHoverRadius: 0, spanGaps: true, yAxisID: 'y', order: 2 },
         { label: 'Volume', type: 'bar', data: sampledVol, backgroundColor: sampledVolColors, borderWidth: 0, yAxisID: 'y2', order: 10 }
@@ -581,22 +590,28 @@ function renderEqLineChart(points, livePrice, prevClose) {
           filter: item => item.text !== 'Price' && item.text !== 'Volume' } },
         tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1f', borderColor: '#2a2a30', borderWidth: 1, titleColor: '#6b6b7a', bodyColor: '#e8e8ed', titleFont: { family: "'IBM Plex Mono', monospace", size: 10 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 11, weight: '600' }, padding: 10,
           callbacks: { label: item => {
-            if (item.raw == null) return null;
+            const val = item.parsed?.y;
+            if (val == null) return null;
             if (item.dataset.label === 'Volume') {
-              const v = item.raw;
-              return ' Vol: ' + (v >= 1e9 ? (v/1e9).toFixed(2)+'B' : v >= 1e6 ? (v/1e6).toFixed(2)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v);
+              return ' Vol: ' + (val >= 1e9 ? (val/1e9).toFixed(2)+'B' : val >= 1e6 ? (val/1e6).toFixed(2)+'M' : val >= 1e3 ? (val/1e3).toFixed(0)+'K' : val);
             }
             const prefix = item.dataset.label === 'Price' ? ' $' : ' ' + item.dataset.label + ': $';
-            return prefix + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return prefix + val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           }}
         },
         zoom: {
-          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
-          limits: { x: { minRange: 2 } }
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x',
+            onZoomComplete({ chart }) {
+              const xScale = chart.scales.x;
+              const unit = pickUnit(xScale.max - xScale.min);
+              if (chart.options.scales.x.time.unit !== unit) { chart.options.scales.x.time.unit = unit; chart.update('none'); }
+            }
+          },
+          limits: { x: { minRange: 15 * 60 * 1000 } }
         }
       },
       scales: {
-        x: { ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
+        x: { type: 'time', time: { unit: initUnit, tooltipFormat: 'MMM d, yyyy h:mm a', displayFormats: { minute: 'h:mm a', hour: 'h:mm a', day: 'MMM d', week: 'MMM d', month: "MMM 'yy" } }, ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.03)' }, border: { color: '#1e1e22' } },
         y: { position: 'right', ticks: { color: '#6b6b7a', font: { family: "'IBM Plex Mono', monospace", size: 9 }, maxTicksLimit: 5, callback: v => v >= 1000 ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$' + v.toFixed(2) }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: '#1e1e22' } },
         y2: { type: 'linear', position: 'left', min: 0, max: maxVol * 5, grid: { display: false }, border: { display: false },
           afterBuildTicks(axis) {
