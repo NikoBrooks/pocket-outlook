@@ -327,6 +327,30 @@
     <span id="fetch-status">Initializing...</span>
   </div>
 
+  <!-- Dictionary — lives inside overview tab so it disappears on other tabs -->
+  <button class="dict-fab" id="dictFab" onclick="toggleDictionary()">
+    <svg class="dict-fab-svg" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="1,11 4,7 6,9 9,4 13,6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="1" y1="13" x2="13" y2="13" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+    </svg>
+    <span class="dict-fab-label">Dictionary</span>
+  </button>
+
+  <div class="dict-panel" id="dictPanel">
+    <div class="dict-panel-header">
+      <div class="dict-panel-title">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><polyline points="1,9 3,6 5,7.5 8,3 11,5" stroke="#00d97e" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="1" y1="11" x2="11" y2="11" stroke="#2a2a30" stroke-width="1"/></svg>
+        Financial Dictionary
+      </div>
+      <button class="dict-panel-close" onclick="toggleDictionary()">✕</button>
+    </div>
+    <div class="dict-search-wrap">
+      <input class="dict-search" id="dictSearch" type="text" placeholder="Search terms..." oninput="filterDictionary(this.value)">
+    </div>
+    <div class="dict-list" id="dictList"></div>
+  </div>
+  <div class="dict-overlay" id="dictOverlay" onclick="toggleDictionary()"></div>
+
   </div><!-- /tab-overview -->
 
   <!-- TAB: EQUITY SECURITIES -->
@@ -416,29 +440,6 @@
 <!-- ── Drag Tooltip ── -->
 <div id="drag-tooltip" style="display:none;position:fixed;background:#1a1a20;border:1px solid var(--border-bright);border-radius:5px;padding:6px 10px;font-family:var(--mono);font-size:12px;pointer-events:none;z-index:800;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);"></div>
 
-<!-- ── Dictionary Panel ── -->
-<button class="dict-fab" id="dictFab" onclick="toggleDictionary()">
-  <svg class="dict-fab-svg" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <polyline points="1,11 4,7 6,9 9,4 13,6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <line x1="1" y1="13" x2="13" y2="13" stroke="currentColor" stroke-width="1" opacity="0.4"/>
-  </svg>
-  <span class="dict-fab-label">Dictionary</span>
-</button>
-
-<div class="dict-panel" id="dictPanel">
-  <div class="dict-panel-header">
-    <div class="dict-panel-title">
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><polyline points="1,9 3,6 5,7.5 8,3 11,5" stroke="#00d97e" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="1" y1="11" x2="11" y2="11" stroke="#2a2a30" stroke-width="1"/></svg>
-      Financial Dictionary
-    </div>
-    <button class="dict-panel-close" onclick="toggleDictionary()">✕</button>
-  </div>
-  <div class="dict-search-wrap">
-    <input class="dict-search" id="dictSearch" type="text" placeholder="Search terms..." oninput="filterDictionary(this.value)">
-  </div>
-  <div class="dict-list" id="dictList"></div>
-</div>
-<div class="dict-overlay" id="dictOverlay" onclick="toggleDictionary()"></div>
 
 </body>
 </html>

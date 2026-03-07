@@ -11,18 +11,6 @@ export function switchTab(tab) {
   event.target.classList.add('active');
   document.body.style.overflow = tab === 'equity' ? 'hidden' : '';
   if (tab === 'equity') renderWatchlist();
-
-  // Dictionary is overview-only: hide FAB and close panel on other tabs
-  const fab = document.getElementById('dictFab');
-  if (fab) fab.style.display = tab === 'overview' ? '' : 'none';
-  if (tab !== 'overview') {
-    const panel = document.getElementById('dictPanel');
-    const overlay = document.getElementById('dictOverlay');
-    if (panel?.classList.contains('open')) {
-      panel.classList.remove('open');
-      overlay?.classList.remove('open');
-    }
-  }
 }
 
 // ── Expose globals for inline HTML handlers ──
