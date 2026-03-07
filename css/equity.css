@@ -42,7 +42,8 @@
 .eq-add-group-wrap {
   border-top: 1px solid var(--border);
   padding: 8px 10px;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  margin-bottom: 8px;
   flex-shrink: 0;
 }
 
@@ -328,6 +329,28 @@
 .eq-stock-change.up   { background: var(--green-dim); color: var(--green); }
 .eq-stock-change.down { background: var(--red-dim);   color: var(--red); }
 
+/* ── Header external links ── */
+.eq-header-links {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.eq-ext-link {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border-bright);
+  color: var(--muted);
+  text-decoration: none;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.eq-ext-link:hover { border-color: var(--green); color: var(--green); }
+
 /* ── Chart + Data Row ── */
 .eq-chart-data-row {
   display: grid;
@@ -488,6 +511,7 @@
 .eq-src-badge.yahoo    { background: #1a3a5c; color: #5ba4e8; }
 .eq-src-badge.edgar    { background: #1a3328; color: var(--green); }
 .eq-src-badge.computed { background: #2d2040; color: #a87fe0; }
+.eq-src-badge.finnhub  { background: #1a2a3a; color: #60b8f0; }
 .eq-src-desc {
   font-size: 10px;
   color: var(--muted);

@@ -81,6 +81,8 @@ export async function fetchFinnhubFundamentals(symbol) {
         currentRatio: m.currentRatioAnnual ?? null,
         freeCashflow: m.freeCashFlowTTM != null ? m.freeCashFlowTTM * 1e6 : (m.freeCashFlowAnnual != null ? m.freeCashFlowAnnual * 1e6 : null),
         totalRevenue: m.revenueTTM != null ? m.revenueTTM * 1e6 : null,
+        dividendYield: m.dividendYieldIndicatedAnnual != null ? m.dividendYieldIndicatedAnnual / 100 : null,
+        ebitdaPerShare: m.ebitdaPerShareTTM ?? null,
       },
       defaultKeyStatistics: {
         priceToSalesTrailing12Months: m.psTTM ?? null,
@@ -333,10 +335,21 @@ export async function fetchEdgarFundamentals(ticker) {
 
     // ── Income statement (TTM) ──
     const revenue = getP('revenue', [
+      // GAAP standard (tech, consumer, most S&P 500)
       'RevenueFromContractWithCustomerExcludingAssessedTax',
-      'Revenues', 'SalesRevenueNet', 'NetRevenues',
       'RevenueFromContractWithCustomerIncludingAssessedTax',
-      'SalesRevenueGoodsNet',
+      // General industrial / diversified
+      'Revenues', 'NetRevenues', 'TotalRevenues', 'RevenueNet',
+      // Older filings / manufacturing
+      'SalesRevenueNet', 'SalesRevenueGoodsNet', 'SalesRevenueServicesNet',
+      // Retail / consumer
+      'NetSales',
+      // Banking (net interest income + non-interest income)
+      'InterestAndDividendIncomeOperating', 'RevenuesNetOfInterestExpense',
+      // Insurance
+      'PremiumsEarnedNet', 'Revenues',
+      // Pharma / biotech
+      'RevenueFromContractWithCustomerExcludingAssessedTax',
     ]);
     const grossProfit     = getP('grossProfit',     ['GrossProfit']);
     const operatingIncome = getP('operatingIncome', ['OperatingIncomeLoss']);
@@ -390,8 +403,15 @@ export async function fetchEdgarFundamentals(ticker) {
     if (debtToEquity != null) cmp('debtToEquity', 'Long-Term Debt ÷ Stockholders\' Equity');
     if (ebitda       != null) cmp('ebitda',       'Operating Income + Depreciation & Amortization');
 
+    // Try to get company website from EDGAR submissions (lightweight — same domain, no proxy)
+    let website = null;
+    try {
+      const subRes = await fetchWithTimeout('https://data.sec.gov/submissions/CIK' + cik + '.json', {}, 6000);
+      if (subRes.ok) { const sub = await subRes.json(); website = sub.website || null; }
+    } catch(e) {}
+
     return {
-      _source: 'edgar', _sources, _cik: cik,
+      _source: 'edgar', _sources, _cik: cik, website,
       revenue, grossProfit, operatingIncome, netIncome, epsDiluted, da, ebitda,
       operatingCF, freeCashFlow,
       totalAssets, currentAssets, currentLiabilities, totalLiabilities,

@@ -110,10 +110,16 @@ export async function renderWatchlist() {
     }
     const addRow = document.createElement('div');
     addRow.className = 'eq-watch-add-row';
-    addRow.innerHTML =
-      '<input id="eq-group-input-' + gi + '" placeholder="Add ticker..." ' +
-        'onkeydown="if(event.key===\'Enter\')addToGroup(' + gi + ')" />' +
-      '<button onclick="addToGroup(' + gi + ')">+</button>';
+    const wInput = document.createElement('input');
+    wInput.id = 'eq-group-input-' + gi;
+    wInput.placeholder = 'Add ticker or name...';
+    const wBtn = document.createElement('button');
+    wBtn.textContent = '+';
+    wBtn.onclick = () => addToGroup(gi);
+    addRow.appendChild(wInput);
+    addRow.appendChild(wBtn);
+    // Attach inline autocomplete for this watchlist input
+    attachTickerAutocomplete(wInput, sym => { wInput.value = sym; addToGroup(gi); });
     if (g.open) bodyDiv.appendChild(addRow);
     groupDiv.appendChild(bodyDiv);
     container.appendChild(groupDiv);
@@ -131,6 +137,9 @@ function showSourcePop(anchor, src) {
   if (src.type === 'yahoo') {
     html = '<div class="eq-src-badge yahoo">Yahoo Finance</div>' +
            '<div class="eq-src-desc">' + (src.desc || 'Real-time market data') + '</div>';
+  } else if (src.type === 'finnhub') {
+    html = '<div class="eq-src-badge finnhub">Finnhub</div>' +
+           '<div class="eq-src-desc">' + (src.desc || 'Finnhub financial data') + '</div>';
   } else if (src.type === 'computed') {
     html = '<div class="eq-src-badge computed">Computed</div>' +
            '<div class="eq-src-desc">' + (src.formula || '') + '</div>';
@@ -163,7 +172,7 @@ function showSourcePop(anchor, src) {
 }
 
 // ── Data Panel ──
-function renderDataPanel(v7, fund, chartMeta) {
+function renderDataPanel(v7, fund, chartMeta, fh) {
   const el = document.getElementById('eq-data-col');
   if (!el) return;
 
@@ -189,6 +198,7 @@ function renderDataPanel(v7, fund, chartMeta) {
   const beta    = v7?.beta ?? getRaw(sum.beta);
   const fwdPE   = v7?.forwardPE ?? getRaw(prc.forwardPE) ?? getRaw(sum.forwardPE);
   const exchange = v7?.fullExchangeName || v7?.exchange || chartMeta?.fullExchangeName || '—';
+  const divYield = v7?.trailingAnnualDividendYield ?? v7?.dividendYield ?? getRaw(fh?.financialData?.dividendYield) ?? null;
 
   // Range-aware change metric
   const useRange = eqRangeChangeAmt != null;
@@ -209,10 +219,13 @@ function renderDataPanel(v7, fund, chartMeta) {
     const ps        = mktCap && fund.revenue    && fund.revenue    > 0 ? mktCap / fund.revenue    : null;
     const pb        = mktCap && fund.equity     && fund.equity     > 0 ? mktCap / fund.equity     : null;
     const pfcf      = mktCap && fund.freeCashFlow && fund.freeCashFlow > 0 ? mktCap / fund.freeCashFlow : null;
-    // EV: prefer Yahoo's reported value (already accounts for all debt/cash),
-    // fall back to mktCap + netDebt from EDGAR
+    // EV: prefer Yahoo's reported value, fall back to mktCap + netDebt
     const ev        = v7?.enterpriseValue ?? (mktCap != null && fund.netDebt != null ? mktCap + fund.netDebt : null);
-    const evEbitda  = ev != null && fund.ebitda != null && fund.ebitda > 0 ? ev / fund.ebitda : null;
+    // EV/EBITDA: compute from ev+ebitda, or use Finnhub's pre-computed ratio directly
+    const fhEvEbitda = getRaw(fh?.defaultKeyStatistics?.enterpriseToEbitda);
+    const evEbitda  = (ev != null && fund.ebitda != null && fund.ebitda !== 0)
+      ? ev / fund.ebitda
+      : fhEvEbitda;
 
     // Build source map for this render
     _panelSources = {};
@@ -231,9 +244,11 @@ function renderDataPanel(v7, fund, chartMeta) {
     _panelSources['eq-m-ps']       = CS('Market Cap ÷ Revenue TTM (EDGAR)');
     _panelSources['eq-m-pb']       = CS('Market Cap ÷ Stockholders\' Equity (EDGAR)');
     _panelSources['eq-m-pfcf']     = CS('Market Cap ÷ Free Cash Flow TTM (EDGAR)');
-    _panelSources['eq-m-evEbitda'] = v7?.enterpriseValue != null
-      ? { type: 'yahoo', desc: 'Enterprise Value (Yahoo Finance) ÷ EBITDA TTM (EDGAR = Op. Income + D&A)' }
-      : CS('(Market Cap + Net Debt) ÷ EBITDA TTM — EBITDA = Op. Income + D&A (EDGAR)');
+    _panelSources['eq-m-evEbitda'] = (ev != null && fund.ebitda != null && fund.ebitda !== 0)
+      ? (v7?.enterpriseValue != null
+          ? { type: 'yahoo', desc: 'Enterprise Value (Yahoo Finance) ÷ EBITDA TTM (EDGAR: Op. Income + D&A)' }
+          : CS('(Market Cap + Net Debt) ÷ EBITDA TTM — EBITDA = Op. Income + D&A (EDGAR)'))
+      : { type: 'finnhub', desc: 'EV/EBITDA ratio from Finnhub (EDGAR EBITDA unavailable)' };
     _panelSources['eq-m-grossMargin'] = fund._sources?.grossMargin;
     _panelSources['eq-m-opMargin']    = fund._sources?.opMargin;
     _panelSources['eq-m-netMargin']   = fund._sources?.netMargin;
@@ -244,6 +259,7 @@ function renderDataPanel(v7, fund, chartMeta) {
     _panelSources['eq-m-cr']          = fund._sources?.currentRatio;
     _panelSources['eq-m-fcf']         = fund._sources?.freeCashFlow;
     _panelSources['eq-m-eps']         = fund._sources?.epsDiluted;
+    _panelSources['eq-m-divyield']    = YS;
     _panelSources['eq-m-beta']        = YS;
     _panelSources['eq-m-exchange']    = YS;
 
@@ -266,6 +282,7 @@ function renderDataPanel(v7, fund, chartMeta) {
         sm('sharesout','Shares Out',  fmtFinNum(sharesOut)),
         sm('high52',   '52W High',    px(high52)),
         sm('low52',    '52W Low',     px(low52)),
+        sm('divyield', 'Div Yield',   divYield != null ? (divYield * 100).toFixed(2) + '%' : 'N/A'),
       ]) +
       section('Valuation', [
         sm('pe',      'P/E (TTM)',   pe      != null ? pe.toFixed(1)      + 'x' : '—', pe      != null && pe      > 0 && pe      < 25 ? 'good' : pe      != null && pe      < 40  ? 'warn' : ''),
@@ -336,6 +353,7 @@ function renderDataPanel(v7, fund, chartMeta) {
       metric('Shares Out', fmtFinNum(sharesOut)),
       metric('52W High', px(high52)),
       metric('52W Low',  px(low52)),
+      metric('Div Yield', divYield != null ? (divYield * 100).toFixed(2) + '%' : 'N/A'),
     ]) +
     section('Valuation', [
       metric('P/E (TTM)', trPE != null ? trPE.toFixed(1) + 'x' : '—', trPE != null && trPE > 0 && trPE < 25 ? 'good' : trPE != null && trPE < 40 ? 'warn' : ''),
@@ -422,14 +440,22 @@ function renderEqLineChart(points, livePrice, prevClose) {
     const rect = cvs.getBoundingClientRect();
     return (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
   }
+  function clampToData(x) {
+    const pts = eqChartInstance?._dataPts;
+    if (pts && pts.length) return Math.max(pts[0].x, Math.min(pts[pts.length - 1].x, x));
+    const area = eqChartInstance?.chartArea;
+    if (area) return Math.max(area.left, Math.min(area.right, x));
+    return x;
+  }
   canvas.addEventListener('mousedown', e => {
     if (!eqChartInstance) return;
-    eqChartInstance._dragStart = getCanvasX(e, canvas); eqChartInstance._dragEnd = null; eqChartInstance._dragging = true;
+    eqChartInstance._dragStart = clampToData(getCanvasX(e, canvas)); eqChartInstance._dragEnd = null; eqChartInstance._dragging = true;
   }, sig);
   canvas.addEventListener('mousemove', e => {
     if (!eqChartInstance) return;
-    eqChartInstance._hoverX = getCanvasX(e, canvas);
-    if (eqChartInstance._dragging) eqChartInstance._dragEnd = getCanvasX(e, canvas);
+    const cx = getCanvasX(e, canvas);
+    eqChartInstance._hoverX = cx;
+    if (eqChartInstance._dragging) eqChartInstance._dragEnd = clampToData(cx);
     eqChartInstance.draw();
   }, sig);
   canvas.addEventListener('mouseup', () => { if (eqChartInstance) eqChartInstance._dragging = false; }, sig);
@@ -452,6 +478,7 @@ function renderEqLineChart(points, livePrice, prevClose) {
       const meta = chart.getDatasetMeta(0);
       const pts = meta.data;
       if (!pts || pts.length === 0) return;
+      chart._dataPts = pts; // expose for drag clamping
       ctx2.save();
       function getLineY(px) {
         for (let i = 0; i < pts.length - 1; i++) {
@@ -647,54 +674,73 @@ export async function loadEquityStock(symbol) {
   const dataEl = document.getElementById('eq-data-col');
   if (dataEl) dataEl.innerHTML = '<div style="padding:40px 20px;font-size:10px;color:var(--muted);text-align:center">Loading...</div>';
 
-  let _chartMeta = null, _v7 = null, _fund = null;
+  let _chartMeta = null, _v7 = null, _fund = null, _fh = null;
 
-  function buildHeader(v7, chartMeta, fund) {
+  function buildHeader(v7, chartMeta, fund, fh) {
     const hPrice = v7?.regularMarketPrice ?? chartMeta?.regularMarketPrice;
     const hPrev = chartMeta?.previousClose || chartMeta?.chartPreviousClose;
     const hChange = v7?.regularMarketChange ?? (hPrice != null && hPrev != null ? hPrice - hPrev : null);
     const hPct = v7?.regularMarketChangePercent ?? (hChange != null && hPrev ? hChange / hPrev : null);
-    const name = v7?.longName || v7?.shortName || fund?._profile?.name || chartMeta?.longName || chartMeta?.shortName || symbol;
+    const name = v7?.longName || v7?.shortName || fund?._profile?.name || fh?._profile?.name || chartMeta?.longName || chartMeta?.shortName || symbol;
     const up = (hChange || 0) >= 0;
+
+    // Company website — prefer EDGAR, then Finnhub profile
+    const siteRaw = fund?.website || fh?._profile?.weburl || null;
+    const site = siteRaw ? (siteRaw.startsWith('http') ? siteRaw : 'https://' + siteRaw) : null;
+    const cik = fund?._cik || null;
+
+    let links = '';
+    if (site) links += '<a class="eq-ext-link" href="' + site + '" target="_blank" rel="noopener" title="Company website">Website ↗</a>';
+    if (cik) {
+      links += '<a class="eq-ext-link" href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=' + cik + '&type=10-K&dateb=&owner=include&count=5" target="_blank" rel="noopener" title="SEC 10-K filings">10-K ↗</a>';
+      links += '<a class="eq-ext-link" href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=' + cik + '&type=10-Q&dateb=&owner=include&count=5" target="_blank" rel="noopener" title="SEC 10-Q filings">10-Q ↗</a>';
+    }
+
     if (headerEl) {
       headerEl.innerHTML =
         '<div class="eq-stock-name">' + name + '</div>' +
         '<div class="eq-stock-price">$' + (hPrice != null ? hPrice.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) : '—') + '</div>' +
-        '<span class="eq-stock-change ' + (up?'up':'down') + '">' + (up?'+':'') + (hChange||0).toFixed(2) + ' (' + (up?'+':'') + ((hPct||0)*100).toFixed(2) + '%)</span>';
+        '<span class="eq-stock-change ' + (up?'up':'down') + '">' + (up?'+':'') + (hChange||0).toFixed(2) + ' (' + (up?'+':'') + ((hPct||0)*100).toFixed(2) + '%)</span>' +
+        (links ? '<div class="eq-header-links">' + links + '</div>' : '');
     }
   }
 
   loadEqChart(symbol, eqCurrentRange, eqCurrentInterval)
     .then(result => {
       _chartMeta = result?.meta || null;
-      buildHeader(_v7, _chartMeta, _fund);
-      renderDataPanel(_v7, _fund, _chartMeta);
+      buildHeader(_v7, _chartMeta, _fund, _fh);
+      renderDataPanel(_v7, _fund, _chartMeta, _fh);
     }).catch(() => {});
 
   fetchYahooV7Quote(symbol)
     .then(result => {
       _v7 = result;
-      buildHeader(_v7, _chartMeta, _fund);
-      renderDataPanel(_v7, _fund, _chartMeta);
+      buildHeader(_v7, _chartMeta, _fund, _fh);
+      renderDataPanel(_v7, _fund, _chartMeta, _fh);
     }).catch(() => {});
 
-  // Try EDGAR first (authoritative GAAP data), fall back to Finnhub for non-US/ETFs
-  fetchEdgarFundamentals(symbol)
-    .then(edgarFund => {
-      if (edgarFund) {
-        _fund = edgarFund;
-        renderDataPanel(_v7, _fund, _chartMeta);
-      } else {
-        return fetchFinnhubFundamentals(symbol);
+  // Run EDGAR + Finnhub in parallel — use EDGAR as primary, Finnhub to fill gaps
+  Promise.all([
+    fetchEdgarFundamentals(symbol).catch(() => null),
+    fetchFinnhubFundamentals(symbol).catch(() => null),
+  ]).then(([edgarFund, fhFund]) => {
+    _fh = fhFund;
+    if (edgarFund) {
+      // Supplement EDGAR null fields from Finnhub
+      const fin = fhFund?.financialData || {};
+      if (edgarFund.revenue == null && fin.totalRevenue != null) {
+        edgarFund.revenue = fin.totalRevenue;
+        edgarFund._sources.revenue = { type: 'finnhub', desc: 'Finnhub — TTM Revenue (EDGAR tag not matched)' };
       }
-    })
-    .then(fhFund => {
-      if (fhFund && !_fund) {
-        _fund = fhFund;
-        buildHeader(_v7, _chartMeta, _fund);
-        renderDataPanel(_v7, _fund, _chartMeta);
-      }
-    }).catch(() => {});
+      _fund = edgarFund;
+    } else if (fhFund) {
+      _fund = fhFund;
+    }
+    if (_fund) {
+      buildHeader(_v7, _chartMeta, _fund, _fh);
+      renderDataPanel(_v7, _fund, _chartMeta, _fh);
+    }
+  }).catch(() => {});
 
   setTimeout(() => {
     document.querySelectorAll('.eq-watch-item').forEach(el => {
@@ -717,80 +763,74 @@ function updatePanelChange() {
   valEl.className = 'eq-metric-value ' + (up ? 'good' : 'bad');
 }
 
-// ── Search Autocomplete ──
-function initSearchAutocomplete() {
-  const input = document.getElementById('eq-ticker-input');
-  const drop  = document.getElementById('eq-search-drop');
-  if (!input || !drop) return;
+// ── Ticker Autocomplete (shared: main search + watchlist inputs) ──
+function attachTickerAutocomplete(input, onSelect) {
+  // Create dropdown anchored to input
+  const drop = document.createElement('div');
+  drop.className = 'eq-search-drop';
+  drop.style.display = 'none';
+  // Insert after input's parent if it has .eq-search-input-wrap, else after input itself
+  const wrap = input.closest('.eq-search-input-wrap') || input.parentElement;
+  wrap.style.position = 'relative';
+  wrap.appendChild(drop);
 
   let debounce = null;
   let activeIdx = -1;
   let lastResults = [];
 
   function hideDrop() { drop.style.display = 'none'; activeIdx = -1; }
-  function showDrop() { drop.style.display = 'block'; }
 
-  function selectResult(r) {
-    input.value = r.symbol;
-    hideDrop();
-    loadEquityStock(r.symbol);
-  }
-
-  function renderDrop(results) {
+  function buildDrop(results) {
     lastResults = results;
     activeIdx = -1;
     if (!results.length) { hideDrop(); return; }
     drop.innerHTML = '';
-    results.forEach((r, i) => {
+    results.forEach(r => {
       const item = document.createElement('div');
       item.className = 'eq-search-item';
       item.innerHTML =
         '<span class="eq-search-sym">' + r.symbol + '</span>' +
         '<span class="eq-search-name">' + r.name + '</span>' +
         (r.exchange ? '<span class="eq-search-exch">' + r.exchange + '</span>' : '');
-      item.addEventListener('mousedown', e => { e.preventDefault(); selectResult(r); });
+      item.addEventListener('mousedown', e => { e.preventDefault(); onSelect(r.symbol); hideDrop(); });
       drop.appendChild(item);
     });
-    showDrop();
+    drop.style.display = 'block';
   }
 
   input.addEventListener('input', () => {
     const q = input.value.trim();
     clearTimeout(debounce);
     if (!q) { hideDrop(); return; }
-    // If it looks like a pure ticker (short, no spaces), show immediately on Enter — still search
-    debounce = setTimeout(async () => {
-      const results = await searchTickers(q);
-      renderDrop(results);
-    }, 250);
+    debounce = setTimeout(async () => { buildDrop(await searchTickers(q)); }, 260);
   });
 
   input.addEventListener('keydown', e => {
     if (drop.style.display === 'none') {
-      if (e.key === 'Enter') loadEquityStock(input.value.trim().toUpperCase());
+      if (e.key === 'Enter') { onSelect(input.value.trim().toUpperCase()); }
       return;
     }
     const items = drop.querySelectorAll('.eq-search-item');
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, -1); }
+    else if (e.key === 'Enter') {
       e.preventDefault();
-      activeIdx = Math.min(activeIdx + 1, items.length - 1);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      activeIdx = Math.max(activeIdx - 1, -1);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (activeIdx >= 0 && lastResults[activeIdx]) selectResult(lastResults[activeIdx]);
-      else { hideDrop(); loadEquityStock(input.value.trim().toUpperCase()); }
+      if (activeIdx >= 0 && lastResults[activeIdx]) { onSelect(lastResults[activeIdx].symbol); hideDrop(); }
+      else { hideDrop(); onSelect(input.value.trim().toUpperCase()); }
       return;
-    } else if (e.key === 'Escape') {
-      hideDrop(); return;
-    }
+    } else if (e.key === 'Escape') { hideDrop(); return; }
     items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
   });
 
   document.addEventListener('click', e => {
     if (!input.contains(e.target) && !drop.contains(e.target)) hideDrop();
   });
+}
+
+function initSearchAutocomplete() {
+  const input = document.getElementById('eq-ticker-input');
+  if (!input) return;
+  attachTickerAutocomplete(input, sym => { input.value = sym; loadEquityStock(sym); });
 }
 
 // ── Equity Tab Init ──
