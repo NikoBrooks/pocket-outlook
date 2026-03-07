@@ -236,8 +236,9 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
     const ps        = mktCap && fund.revenue    && fund.revenue    > 0 ? mktCap / fund.revenue    : null;
     const pb        = mktCap && fund.equity     && fund.equity     > 0 ? mktCap / fund.equity     : null;
     const pfcf      = mktCap && fund.freeCashFlow && fund.freeCashFlow > 0 ? mktCap / fund.freeCashFlow : null;
-    // EV: prefer Yahoo's reported value, fall back to mktCap + netDebt
-    const ev        = v7?.enterpriseValue ?? (mktCap != null && fund.netDebt != null ? mktCap + fund.netDebt : null);
+    // EV: computed from balance sheet first, then supplemented fund.ev (Yahoo), then v7
+    const computedEV = mktCap != null && fund.netDebt != null ? mktCap + fund.netDebt : null;
+    const ev        = computedEV ?? fund.ev ?? v7?.enterpriseValue ?? null;
     // EV/EBITDA: compute from ev+ebitda, or use Finnhub's pre-computed ratio directly
     const fhEvEbitda = getRaw(fh?.defaultKeyStatistics?.enterpriseToEbitda);
     const evEbitda  = (ev != null && fund.ebitda != null && fund.ebitda !== 0)
@@ -261,11 +262,15 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
     _panelSources['eq-m-ps']       = CS('Market Cap ÷ Revenue TTM (EDGAR)');
     _panelSources['eq-m-pb']       = CS('Market Cap ÷ Stockholders\' Equity (EDGAR)');
     _panelSources['eq-m-pfcf']     = CS('Market Cap ÷ Free Cash Flow TTM (EDGAR)');
+    _panelSources['eq-m-ebitda']   = fund._sources?.ebitda || CS('Operating Income + D&A (EDGAR)');
+    _panelSources['eq-m-ev']       = computedEV != null ? CS('Market Cap + Net Debt (EDGAR balance sheet)') : (fund._sources?.ev || YS);
     _panelSources['eq-m-evEbitda'] = (ev != null && fund.ebitda != null && fund.ebitda !== 0)
-      ? (v7?.enterpriseValue != null
-          ? { type: 'yahoo', desc: 'Enterprise Value (Yahoo Finance) ÷ EBITDA TTM (EDGAR: Op. Income + D&A)' }
-          : CS('(Market Cap + Net Debt) ÷ EBITDA TTM — EBITDA = Op. Income + D&A (EDGAR)'))
-      : { type: 'finnhub', desc: 'EV/EBITDA ratio from Finnhub (EDGAR EBITDA unavailable)' };
+      ? (computedEV != null
+          ? CS('(Market Cap + Net Debt) ÷ EBITDA TTM (EDGAR)')
+          : fund._sources?.ev
+            ? { type: fund._sources.ev.type, desc: fund._sources.ev.desc + ' ÷ EBITDA TTM' }
+            : { type: 'yahoo', desc: 'Enterprise Value (Yahoo Finance) ÷ EBITDA TTM' })
+      : { type: 'finnhub', desc: 'EV/EBITDA ratio from Finnhub (EDGAR EBITDA/EV unavailable)' };
     _panelSources['eq-m-grossMargin'] = fund._sources?.grossMargin;
     _panelSources['eq-m-opMargin']    = fund._sources?.opMargin;
     _panelSources['eq-m-netMargin']   = fund._sources?.netMargin;
@@ -304,10 +309,12 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
         sr('ps',       'P/S',           ps       != null ? ps.toFixed(2)        + 'x' : '—', ps       != null && ps       > 0 && ps       < 5  ? 'good' : ps       != null && ps       < 10 ? 'warn' : ''),
         sr('pb',       'P/B',           pb       != null ? pb.toFixed(2)        + 'x' : '—', pb       != null && pb       > 0 && pb       < 3  ? 'good' : pb       != null && pb       < 6  ? 'warn' : ''),
         sr('pfcf',     'P/FCF',         pfcf     != null ? pfcf.toFixed(1)     + 'x' : '—', pfcf     != null && pfcf     > 0 && pfcf     < 25 ? 'good' : pfcf     != null && pfcf     < 50 ? 'warn' : ''),
+        sr('ev',       'Enterprise Val', fmtDollar(ev)),
         sr('evEbitda', 'EV/EBITDA',     evEbitda != null ? evEbitda.toFixed(1) + 'x' : '—', evEbitda != null && evEbitda > 0 && evEbitda < 15 ? 'good' : evEbitda != null && evEbitda < 25 ? 'warn' : ''),
       ], 'GAAP · EDGAR') +
       sect('Profitability', [
         sr('revenue',     'Revenue (TTM)',  fmtDollar(fund.revenue)),
+        sr('ebitda',      'EBITDA (TTM)',   fmtDollar(fund.ebitda)),
         sr('grossMargin', 'Gross Margin',   fmtPct(fund.grossMargin),   fund.grossMargin != null && fund.grossMargin > 0.40 ? 'good' : fund.grossMargin != null && fund.grossMargin > 0.20 ? 'warn' : ''),
         sr('opMargin',    'Op Margin',      fmtPct(fund.opMargin),      fund.opMargin    != null && fund.opMargin    > 0.15 ? 'good' : fund.opMargin    != null && fund.opMargin    > 0.05 ? 'warn' : ''),
         sr('netMargin',   'Net Margin',     fmtPct(fund.netMargin),     fund.netMargin   != null && fund.netMargin   > 0.10 ? 'good' : fund.netMargin   != null && fund.netMargin   > 0.02 ? 'warn' : ''),
@@ -353,6 +360,8 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
   const de     = getRaw(fin.debtToEquity);
   const cr     = getRaw(fin.currentRatio);
   const rev    = getRaw(fin.totalRevenue);
+  const ebitda = getRaw(fin.ebitda);
+  const ev     = fin.ev ?? getRaw(stats.enterpriseValue);
 
   el.innerHTML = '<div class="eq-panel">' +
     sect('Price & Market', [
@@ -373,10 +382,12 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
       row('P/B',       pb       != null ? pb.toFixed(2)        + 'x' : '—', pb       != null && pb       > 0 && pb       < 3  ? 'good' : pb       != null && pb       < 6  ? 'warn' : ''),
       row('P/S',       ps       != null ? ps.toFixed(2)        + 'x' : '—', ps       != null && ps       > 0 && ps       < 5  ? 'good' : ps       != null && ps       < 10 ? 'warn' : ''),
       row('P/FCF',     pfcf     != null ? pfcf.toFixed(1)     + 'x' : '—', pfcf     != null && pfcf     > 0 && pfcf     < 25 ? 'good' : pfcf     != null && pfcf     < 50 ? 'warn' : ''),
+      row('Enterprise Val', fmtDollar(ev)),
       row('EV/EBITDA', evEbitda != null ? evEbitda.toFixed(1) + 'x' : '—', evEbitda != null && evEbitda > 0 && evEbitda < 15 ? 'good' : evEbitda != null && evEbitda < 25 ? 'warn' : ''),
     ], 'Finnhub') +
     sect('Profitability', [
       row('Revenue (TTM)', fmtDollar(rev)),
+      row('EBITDA (TTM)',  fmtDollar(ebitda)),
       row('Gross Margin',  fmtPct(grossM), grossM != null && grossM > 0.40 ? 'good' : grossM != null && grossM > 0.20 ? 'warn' : ''),
       row('Op Margin',     fmtPct(opM),    opM    != null && opM    > 0.15 ? 'good' : opM    != null && opM    > 0.05 ? 'warn' : ''),
       row('Net Margin',    fmtPct(netM),   netM   != null && netM   > 0.10 ? 'good' : netM   != null && netM   > 0.02 ? 'warn' : ''),
@@ -824,38 +835,51 @@ export async function loadEquityStock(symbol) {
       renderDataPanel(_v7, _fund, _chartMeta, _fh);
     }).catch(() => {});
 
-  // Run EDGAR + Finnhub + Yahoo v10 in parallel — EDGAR primary, others fill gaps
-  Promise.all([
-    fetchEdgarFundamentals(symbol).catch(() => null),
-    fetchFinnhubFundamentals(symbol).catch(() => null),
-    fetchFundamentals(symbol).catch(() => null),
-  ]).then(([edgarFund, fhFund, yahooFund]) => {
+  // Launch all three in parallel immediately
+  const edgarPromise = fetchEdgarFundamentals(symbol).catch(() => null);
+  const fhPromise    = fetchFinnhubFundamentals(symbol).catch(() => null);
+  const yahooPromise = fetchFundamentals(symbol).catch(() => null);
+
+  // Render immediately when Finnhub arrives (~1-2s, direct API — no CORS proxy)
+  fhPromise.then(fhFund => {
+    if (fhFund && !_fund) {
+      _fh = fhFund; _fund = fhFund;
+      buildHeader(_v7, _chartMeta, _fund, _fh);
+      renderDataPanel(_v7, _fund, _chartMeta, _fh);
+    }
+  });
+
+  // Final update once all sources complete — EDGAR primary, fill gaps from Finnhub/Yahoo
+  Promise.all([edgarPromise, fhPromise, yahooPromise]).then(([edgarFund, fhFund, yahooFund]) => {
     _fh = fhFund;
-    const yFin = yahooFund?.financialData || {};
-    const yRevenue = getRaw(yFin.totalRevenue);
+    const yFin   = yahooFund?.financialData        || {};
+    const yStats  = yahooFund?.defaultKeyStatistics || {};
 
     if (edgarFund) {
-      // Supplement EDGAR revenue gap: try Finnhub, then Yahoo v10
-      if (edgarFund.revenue == null) {
-        const fhRev = fhFund?.financialData?.totalRevenue ?? null;
-        const rev = fhRev != null ? fhRev : yRevenue;
-        if (rev != null) {
-          edgarFund.revenue = rev;
-          edgarFund._sources = edgarFund._sources || {};
-          edgarFund._sources.revenue = fhRev != null
-            ? { type: 'finnhub', desc: 'Finnhub — TTM Revenue (EDGAR tag not matched)' }
-            : { type: 'yahoo',   desc: 'Yahoo Finance — TTM Revenue (EDGAR tag not matched)' };
-        }
+      edgarFund._sources = edgarFund._sources || {};
+      // Fill null EDGAR fields from Finnhub then Yahoo, with source tracking
+      function sup(key, fhVal, yVal, fhDesc, yDesc) {
+        if (edgarFund[key] != null) return;
+        const val = fhVal != null ? fhVal : (yVal != null ? yVal : null);
+        if (val == null) return;
+        edgarFund[key] = val;
+        edgarFund._sources[key] = fhVal != null ? { type: 'finnhub', desc: fhDesc } : { type: 'yahoo', desc: yDesc };
+      }
+      sup('revenue',      fhFund?.financialData?.totalRevenue, getRaw(yFin.totalRevenue), 'Finnhub — TTM Revenue',  'Yahoo Finance — TTM Revenue');
+      sup('freeCashFlow', fhFund?.financialData?.freeCashflow,  getRaw(yFin.freeCashflow), 'Finnhub — FCF TTM',      'Yahoo Finance — FCF TTM');
+      sup('ebitda',       null,                                  getRaw(yFin.ebitda),        null,                    'Yahoo Finance — EBITDA TTM');
+      const yEV = getRaw(yStats.enterpriseValue);
+      if (!edgarFund.ev && yEV != null) {
+        edgarFund.ev = yEV;
+        edgarFund._sources.ev = { type: 'yahoo', desc: 'Enterprise Value from Yahoo Finance' };
       }
       _fund = edgarFund;
     } else if (fhFund) {
-      // Supplement Finnhub revenue gap from Yahoo v10
-      if (fhFund.financialData.totalRevenue == null && yRevenue != null) {
-        fhFund.financialData.totalRevenue = yRevenue;
-      }
+      fhFund.financialData.totalRevenue = fhFund.financialData.totalRevenue ?? getRaw(yFin.totalRevenue);
+      fhFund.financialData.ebitda       = fhFund.financialData.ebitda       ?? getRaw(yFin.ebitda);
+      fhFund.financialData.ev           = fhFund.financialData.ev           ?? getRaw(yStats.enterpriseValue);
       _fund = fhFund;
     } else if (yahooFund) {
-      // Yahoo v10 as last-resort fund source (uses legacy panel path)
       _fund = yahooFund;
     }
 
