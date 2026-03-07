@@ -230,27 +230,43 @@ export async function fetchFundamentals(symbol) {
 }
 
 // ── SEC EDGAR Fundamentals ──
+// _edgarCikCache is a compact {TICKER: "0000000000"} map.
+// Persisted in localStorage so the slow 1.4MB company_tickers.json download
+// only ever happens once — all subsequent page loads use the instant cache.
 let _edgarCikCache = null;
+const _EDGAR_LS_KEY = 'edgar-tickers-v1';
+const _EDGAR_TTL    = 7 * 24 * 60 * 60 * 1000; // 1 week
 
 async function getEdgarCik(ticker) {
+  // 1. In-memory (same session — instant)
+  // 2. localStorage (cross-session — instant after first download)
+  if (!_edgarCikCache) {
+    try {
+      const stored = localStorage.getItem(_EDGAR_LS_KEY);
+      if (stored) {
+        const { map, ts } = JSON.parse(stored);
+        if (map && Date.now() - ts < _EDGAR_TTL) _edgarCikCache = map;
+      }
+    } catch(e) {}
+  }
+  // 3. Download from SEC (only runs once ever — result saved to localStorage)
   if (!_edgarCikCache) {
     try {
       const res = await fetchWithTimeout('https://data.sec.gov/files/company_tickers.json', {}, 20000);
       if (!res.ok) return null;
-      _edgarCikCache = await res.json();
+      const full = await res.json();
+      const map = {};
+      for (const e of Object.values(full)) map[e.ticker.toUpperCase()] = String(e.cik_str).padStart(10, '0');
+      _edgarCikCache = map;
+      try { localStorage.setItem(_EDGAR_LS_KEY, JSON.stringify({ map, ts: Date.now() })); } catch(e) {}
     } catch(e) { return null; }
   }
+
   const upper = ticker.toUpperCase();
-  const entries = Object.values(_edgarCikCache);
-  const exact = entries.find(e => e.ticker.toUpperCase() === upper);
-  if (exact) return String(exact.cik_str).padStart(10, '0');
-  // Dual-class share fallback: RUSHA→RUSH, RUSHB→RUSH, GOOGL→GOOG, BRK.A→BRK
-  const variants = [upper.slice(0, -1), upper.replace(/\.[A-Z]$/, '')];
-  for (const v of variants) {
-    if (v && v !== upper) {
-      const match = entries.find(e => e.ticker.toUpperCase() === v);
-      if (match) return String(match.cik_str).padStart(10, '0');
-    }
+  if (_edgarCikCache[upper]) return _edgarCikCache[upper];
+  // Dual-class share fallback: RUSHA→RUSH, GOOGL→GOOG, BRK.A→BRK
+  for (const v of [upper.slice(0, -1), upper.replace(/\.[A-Z]$/, '')]) {
+    if (v && v !== upper && _edgarCikCache[v]) return _edgarCikCache[v];
   }
   return null;
 }
