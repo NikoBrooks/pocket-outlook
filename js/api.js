@@ -83,6 +83,9 @@ export async function fetchFinnhubFundamentals(symbol) {
         totalRevenue: m.revenueTTM != null ? m.revenueTTM * 1e6 : null,
         dividendYield: m.dividendYieldIndicatedAnnual != null ? m.dividendYieldIndicatedAnnual / 100 : null,
         ebitdaPerShare: m.ebitdaPerShareTTM ?? null,
+        // Total EBITDA: per-share × shares outstanding (Finnhub shareOutstanding is in millions)
+        ebitda: m.ebitdaPerShareTTM != null && pj?.shareOutstanding != null
+          ? m.ebitdaPerShareTTM * pj.shareOutstanding * 1e6 : null,
       },
       defaultKeyStatistics: {
         priceToSalesTrailing12Months: m.psTTM ?? null,
@@ -388,7 +391,8 @@ export async function fetchEdgarFundamentals(ticker) {
     const currentRatio = currentAssets != null && currentLiabilities ? currentAssets / currentLiabilities : null;
     const debtToEquity = longTermDebt != null && equity && equity > 0 ? longTermDebt / equity : null;
     const ebitda       = operatingIncome != null && da != null ? operatingIncome + da : operatingIncome;
-    const netDebt      = longTermDebt != null && cash != null ? longTermDebt - cash : null;
+    // If cash is known, treat missing LT debt as 0 (company may have no long-term debt)
+    const netDebt      = cash != null ? (longTermDebt ?? 0) - cash : (longTermDebt != null ? longTermDebt : null);
 
     const cmp = (key, f) => { _sources[key] = { type: 'computed', formula: f }; };
     if (freeCashFlow != null) cmp('freeCashFlow', 'Operating Cash Flow − Capital Expenditures');

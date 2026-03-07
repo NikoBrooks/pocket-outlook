@@ -865,19 +865,34 @@ export async function loadEquityStock(symbol) {
         edgarFund[key] = val;
         edgarFund._sources[key] = fhVal != null ? { type: 'finnhub', desc: fhDesc } : { type: 'yahoo', desc: yDesc };
       }
-      sup('revenue',      fhFund?.financialData?.totalRevenue, getRaw(yFin.totalRevenue), 'Finnhub — TTM Revenue',  'Yahoo Finance — TTM Revenue');
-      sup('freeCashFlow', fhFund?.financialData?.freeCashflow,  getRaw(yFin.freeCashflow), 'Finnhub — FCF TTM',      'Yahoo Finance — FCF TTM');
-      sup('ebitda',       null,                                  getRaw(yFin.ebitda),        null,                    'Yahoo Finance — EBITDA TTM');
+      sup('revenue',      fhFund?.financialData?.totalRevenue, getRaw(yFin.totalRevenue), 'Finnhub — TTM Revenue', 'Yahoo Finance — TTM Revenue');
+      sup('freeCashFlow', fhFund?.financialData?.freeCashflow,  getRaw(yFin.freeCashflow), 'Finnhub — FCF TTM',     'Yahoo Finance — FCF TTM');
+      sup('ebitda',       fhFund?.financialData?.ebitda,        getRaw(yFin.ebitda),       'Finnhub — EBITDA TTM (EPS × shares)', 'Yahoo Finance — EBITDA TTM');
+      // EV: try Yahoo v10, then back-calculate from Finnhub ev/ebitda × ebitda
       const yEV = getRaw(yStats.enterpriseValue);
       if (!edgarFund.ev && yEV != null) {
         edgarFund.ev = yEV;
         edgarFund._sources.ev = { type: 'yahoo', desc: 'Enterprise Value from Yahoo Finance' };
       }
+      if (!edgarFund.ev) {
+        const fhRatio = fhFund?.defaultKeyStatistics?.enterpriseToEbitda;
+        if (fhRatio != null && edgarFund.ebitda != null) {
+          edgarFund.ev = fhRatio * edgarFund.ebitda;
+          edgarFund._sources.ev = { type: 'finnhub', desc: 'EV/EBITDA ratio × EBITDA (Finnhub ratio back-calculation)' };
+        }
+      }
       _fund = edgarFund;
     } else if (fhFund) {
       fhFund.financialData.totalRevenue = fhFund.financialData.totalRevenue ?? getRaw(yFin.totalRevenue);
       fhFund.financialData.ebitda       = fhFund.financialData.ebitda       ?? getRaw(yFin.ebitda);
-      fhFund.financialData.ev           = fhFund.financialData.ev           ?? getRaw(yStats.enterpriseValue);
+      const fhEV = getRaw(yStats.enterpriseValue);
+      if (!fhFund.financialData.ev && fhEV != null) fhFund.financialData.ev = fhEV;
+      // Back-calculate EV from Finnhub ratio × EBITDA if still missing
+      if (!fhFund.financialData.ev) {
+        const fhRatio = fhFund?.defaultKeyStatistics?.enterpriseToEbitda;
+        const fhEbitda = fhFund.financialData.ebitda;
+        if (fhRatio != null && fhEbitda != null) fhFund.financialData.ev = fhRatio * fhEbitda;
+      }
       _fund = fhFund;
     } else if (yahooFund) {
       _fund = yahooFund;
