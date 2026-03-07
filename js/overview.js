@@ -1,5 +1,5 @@
 import { fetchYahoo, fetchFinnhub, fetchCrypto } from './api.js';
-import { fmt, fmtLarge, setCard } from './utils.js';
+import { fmt, fmtLarge, setCard, timeAgo } from './utils.js';
 import { RSS2JSON } from './config.js';
 
 // ── Greeting ──
@@ -34,7 +34,7 @@ export function loadFedData() {
   document.getElementById('fedrate-price').textContent = '4.25% – 4.50%';
   document.getElementById('fedrate-change').textContent = 'Held — Jan 29, 2025';
   document.getElementById('fedrate-sub').textContent = 'Federal Reserve';
-  const fomcDates = [new Date('2025-03-19'),new Date('2025-05-07'),new Date('2025-06-18'),new Date('2025-07-30'),new Date('2025-09-17'),new Date('2025-10-29'),new Date('2025-12-10'),new Date('2026-01-28'),new Date('2026-03-18'),new Date('2026-04-29'),new Date('2026-06-17')];
+  const fomcDates = [new Date('2026-03-18'),new Date('2026-05-06'),new Date('2026-06-17'),new Date('2026-07-29'),new Date('2026-09-16'),new Date('2026-10-28'),new Date('2026-12-09'),new Date('2027-01-27'),new Date('2027-03-17'),new Date('2027-05-05')];
   const now = new Date();
   const next = fomcDates.find(d => d > now);
   if (next) {
@@ -217,20 +217,6 @@ async function fetchRSS(key) {
     if (count === 0) throw new Error('no valid items');
     timeEl.textContent = 'Updated ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     setSentiment(key, items.map(i => i.title || '').filter(Boolean));
-  }
-
-  function timeAgo(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr.replace(/ (EST|EDT|CST|CDT|MST|MDT|PST|PDT)$/, ''));
-    if (isNaN(d.getTime())) return '';
-    const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return mins + 'm ago';
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return hrs + 'h ago';
-    const days = Math.floor(hrs / 24);
-    if (days < 30) return days + 'd ago';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   for (const rssUrl of feed.urls) {

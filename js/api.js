@@ -171,7 +171,7 @@ export async function fetchYahooV7Quote(symbol) {
     'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + symbol,
     'https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + symbol,
   ];
-  for (const proxy of [PROXIES[0], PROXIES[1]]) {
+  for (const proxy of PROXIES) {
     for (const yurl of yurls) {
       try {
         const res = await fetchWithTimeout(proxy + encodeURIComponent(yurl + '&_cb=' + Date.now()), { cache: 'no-store' }, 5000);
@@ -213,7 +213,7 @@ export async function fetchFundamentals(symbol) {
     'https://query1.finance.yahoo.com/v11/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false&_cb=',
     'https://query2.finance.yahoo.com/v11/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false&_cb=',
   ];
-  for (const proxy of [PROXIES[0], PROXIES[1]]) {
+  for (const proxy of PROXIES) {
     for (const base of apiUrls) {
       try {
         const res = await fetchWithTimeout(proxy + encodeURIComponent(base + Date.now()), { cache: 'no-store' }, 5000);
@@ -335,21 +335,19 @@ export async function fetchEdgarFundamentals(ticker) {
 
     // ── Income statement (TTM) ──
     const revenue = getP('revenue', [
-      // GAAP standard (tech, consumer, most S&P 500)
+      // GAAP standard (tech, consumer, services — most S&P 500)
       'RevenueFromContractWithCustomerExcludingAssessedTax',
       'RevenueFromContractWithCustomerIncludingAssessedTax',
       // General industrial / diversified
       'Revenues', 'NetRevenues', 'TotalRevenues', 'RevenueNet',
-      // Older filings / manufacturing
-      'SalesRevenueNet', 'SalesRevenueGoodsNet', 'SalesRevenueServicesNet',
-      // Retail / consumer
-      'NetSales',
-      // Banking (net interest income + non-interest income)
+      // Older filings / manufacturing / retail
+      'SalesRevenueNet', 'SalesRevenueGoodsNet', 'SalesRevenueServicesNet', 'NetSales',
+      // Airlines, utilities, transportation
+      'OperatingRevenue',
+      // Banking
       'InterestAndDividendIncomeOperating', 'RevenuesNetOfInterestExpense',
       // Insurance
-      'PremiumsEarnedNet', 'Revenues',
-      // Pharma / biotech
-      'RevenueFromContractWithCustomerExcludingAssessedTax',
+      'PremiumsEarnedNet',
     ]);
     const grossProfit     = getP('grossProfit',     ['GrossProfit']);
     const operatingIncome = getP('operatingIncome', ['OperatingIncomeLoss']);

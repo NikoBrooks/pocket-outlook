@@ -1,4 +1,4 @@
-import { fetchYahoo, fetchYahooV7Quote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData, searchTickers } from './api.js';
+import { fetchYahoo, fetchYahooV7Quote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData, searchTickers, fetchFundamentals } from './api.js';
 import { fmt, fmtFinNum, fmtPct, getRaw } from './utils.js';
 
 // ── Module State ──
@@ -177,6 +177,7 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
   if (!el) return;
 
   function px(v) { return v != null ? '$' + v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; }
+  function fmtDollar(v) { return v != null ? '$' + fmtFinNum(v) : '—'; }
 
   // ── New panel helpers: dense terminal-style rows ──
   function row(label, value, cls, id) {
@@ -247,8 +248,8 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
     _panelSources = {};
     const YS = { type: 'yahoo', desc: 'Yahoo Finance — real-time market data' };
     const CS = f => ({ type: 'computed', formula: f });
-    _panelSources['eq-m-price']    = YS;
-    _panelSources['eq-m-change']   = YS;
+    _panelSources['eq-m-price']      = YS;
+    _panelSources['eq-metric-change'] = YS;
     _panelSources['eq-m-vol']      = YS;
     _panelSources['eq-m-avgvol']   = YS;
     _panelSources['eq-m-mktcap']   = YS;
@@ -283,10 +284,14 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
     el.innerHTML = '<div class="eq-panel">' +
       sect('Price & Market', [
         sr('price',    'Price',         px(price)),
-        sr('change',   changeLabel,     changeStr, upDown ? 'good' : 'bad'),
+        // Change row uses eq-metric-change ID directly so updatePanelChange() and click handler both find it
+        '<div class="eq-panel-row eq-panel-src" id="eq-metric-change">' +
+          '<span class="eq-panel-lbl">' + changeLabel + '</span>' +
+          '<span class="eq-panel-val ' + (upDown ? 'good' : 'bad') + '">' + changeStr + '</span>' +
+        '</div>',
         sr('vol',      'Volume',        fmtFinNum(vol)),
         sr('avgvol',   'Avg Vol (3M)',  fmtFinNum(avgVol)),
-        sr('mktcap',   'Market Cap',    '$' + fmtFinNum(mktCap)),
+        sr('mktcap',   'Market Cap',    fmtDollar(mktCap)),
         sr('sharesout','Shares Out',    fmtFinNum(sharesOut)),
         sr('high52',   '52W High',      px(high52)),
         sr('low52',    '52W Low',       px(low52)),
@@ -302,7 +307,7 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
         sr('evEbitda', 'EV/EBITDA',     evEbitda != null ? evEbitda.toFixed(1) + 'x' : '—', evEbitda != null && evEbitda > 0 && evEbitda < 15 ? 'good' : evEbitda != null && evEbitda < 25 ? 'warn' : ''),
       ], 'GAAP · EDGAR') +
       sect('Profitability', [
-        sr('revenue',     'Revenue (TTM)',  '$' + fmtFinNum(fund.revenue)),
+        sr('revenue',     'Revenue (TTM)',  fmtDollar(fund.revenue)),
         sr('grossMargin', 'Gross Margin',   fmtPct(fund.grossMargin),   fund.grossMargin != null && fund.grossMargin > 0.40 ? 'good' : fund.grossMargin != null && fund.grossMargin > 0.20 ? 'warn' : ''),
         sr('opMargin',    'Op Margin',      fmtPct(fund.opMargin),      fund.opMargin    != null && fund.opMargin    > 0.15 ? 'good' : fund.opMargin    != null && fund.opMargin    > 0.05 ? 'warn' : ''),
         sr('netMargin',   'Net Margin',     fmtPct(fund.netMargin),     fund.netMargin   != null && fund.netMargin   > 0.10 ? 'good' : fund.netMargin   != null && fund.netMargin   > 0.02 ? 'warn' : ''),
@@ -310,7 +315,7 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
         sr('roa',         'ROA',            fmtPct(fund.roa),           fund.roa         != null && fund.roa         > 0.05 ? 'good' : fund.roa         != null && fund.roa         > 0.01 ? 'warn' : ''),
       ], 'GAAP · EDGAR') +
       sect('Financial Health', [
-        sr('fcf',    'Free Cash Flow',  '$' + fmtFinNum(fund.freeCashFlow), fund.freeCashFlow != null && fund.freeCashFlow > 0 ? 'good' : fund.freeCashFlow != null ? 'bad' : ''),
+        sr('fcf',    'Free Cash Flow',  fmtDollar(fund.freeCashFlow), fund.freeCashFlow != null && fund.freeCashFlow > 0 ? 'good' : fund.freeCashFlow != null ? 'bad' : ''),
         sr('eps',    'EPS (TTM)',       fund.epsDiluted != null ? '$' + fund.epsDiluted.toFixed(2) : '—', fund.epsDiluted != null && fund.epsDiluted > 0 ? 'good' : fund.epsDiluted != null ? 'bad' : ''),
         sr('debtEq', 'Debt / Equity',  fund.debtToEquity != null ? fund.debtToEquity.toFixed(2) + 'x' : '—', fund.debtToEquity != null && fund.debtToEquity < 0.5 ? 'good' : fund.debtToEquity != null && fund.debtToEquity < 1.5 ? 'warn' : fund.debtToEquity != null ? 'bad' : ''),
         sr('cr',     'Current Ratio',  fund.currentRatio != null ? fund.currentRatio.toFixed(2) + 'x' : '—', fund.currentRatio != null && fund.currentRatio > 1.5 ? 'good' : fund.currentRatio != null && fund.currentRatio > 1 ? 'warn' : fund.currentRatio != null ? 'bad' : ''),
@@ -325,9 +330,6 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
         if (src) { showSourcePop(m, src); e.stopPropagation(); }
       });
     });
-    // Preserve range-change id for updatePanelChange()
-    const changeEl = el.querySelector('#eq-m-change');
-    if (changeEl) changeEl.id = 'eq-metric-change';
     return;
   }
 
@@ -358,7 +360,7 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
       row(changeLabel,    changeStr, upDown ? 'good' : 'bad', 'eq-metric-change'),
       row('Volume',       fmtFinNum(vol)),
       row('Avg Vol (3M)', fmtFinNum(avgVol)),
-      row('Market Cap',   '$' + fmtFinNum(mktCap)),
+      row('Market Cap',   fmtDollar(mktCap)),
       row('Shares Out',   fmtFinNum(sharesOut)),
       row('52W High',     px(high52)),
       row('52W Low',      px(low52)),
@@ -374,7 +376,7 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
       row('EV/EBITDA', evEbitda != null ? evEbitda.toFixed(1) + 'x' : '—', evEbitda != null && evEbitda > 0 && evEbitda < 15 ? 'good' : evEbitda != null && evEbitda < 25 ? 'warn' : ''),
     ], 'Finnhub') +
     sect('Profitability', [
-      row('Revenue (TTM)', '$' + fmtFinNum(rev)),
+      row('Revenue (TTM)', fmtDollar(rev)),
       row('Gross Margin',  fmtPct(grossM), grossM != null && grossM > 0.40 ? 'good' : grossM != null && grossM > 0.20 ? 'warn' : ''),
       row('Op Margin',     fmtPct(opM),    opM    != null && opM    > 0.15 ? 'good' : opM    != null && opM    > 0.05 ? 'warn' : ''),
       row('Net Margin',    fmtPct(netM),   netM   != null && netM   > 0.10 ? 'good' : netM   != null && netM   > 0.02 ? 'warn' : ''),
@@ -382,7 +384,7 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
       row('ROA',           fmtPct(roa),    roa    != null && roa    > 0.05 ? 'good' : roa    != null && roa    > 0.01 ? 'warn' : ''),
     ], 'Finnhub') +
     sect('Financial Health', [
-      row('Free Cash Flow', '$' + fmtFinNum(fcfRaw), fcfRaw != null && fcfRaw > 0 ? 'good' : fcfRaw != null ? 'bad' : ''),
+      row('Free Cash Flow', fmtDollar(fcfRaw), fcfRaw != null && fcfRaw > 0 ? 'good' : fcfRaw != null ? 'bad' : ''),
       row('EPS (TTM)',      eps != null ? '$' + eps.toFixed(2) : '—', eps != null && eps > 0 ? 'good' : eps != null ? 'bad' : ''),
       row('Debt / Equity',  de != null ? (de / 100).toFixed(2) + 'x' : '—', de != null && de / 100 < 0.5 ? 'good' : de != null && de / 100 < 1.5 ? 'warn' : de != null ? 'bad' : ''),
       row('Current Ratio',  cr != null ? cr.toFixed(2) + 'x' : '—', cr != null && cr > 1.5 ? 'good' : cr != null && cr > 1 ? 'warn' : cr != null ? 'bad' : ''),
@@ -729,23 +731,41 @@ export async function loadEquityStock(symbol) {
       renderDataPanel(_v7, _fund, _chartMeta, _fh);
     }).catch(() => {});
 
-  // Run EDGAR + Finnhub in parallel — use EDGAR as primary, Finnhub to fill gaps
+  // Run EDGAR + Finnhub + Yahoo v10 in parallel — EDGAR primary, others fill gaps
   Promise.all([
     fetchEdgarFundamentals(symbol).catch(() => null),
     fetchFinnhubFundamentals(symbol).catch(() => null),
-  ]).then(([edgarFund, fhFund]) => {
+    fetchFundamentals(symbol).catch(() => null),
+  ]).then(([edgarFund, fhFund, yahooFund]) => {
     _fh = fhFund;
+    const yFin = yahooFund?.financialData || {};
+    const yRevenue = getRaw(yFin.totalRevenue);
+
     if (edgarFund) {
-      // Supplement EDGAR null fields from Finnhub
-      const fin = fhFund?.financialData || {};
-      if (edgarFund.revenue == null && fin.totalRevenue != null) {
-        edgarFund.revenue = fin.totalRevenue;
-        edgarFund._sources.revenue = { type: 'finnhub', desc: 'Finnhub — TTM Revenue (EDGAR tag not matched)' };
+      // Supplement EDGAR revenue gap: try Finnhub, then Yahoo v10
+      if (edgarFund.revenue == null) {
+        const fhRev = fhFund?.financialData?.totalRevenue ?? null;
+        const rev = fhRev != null ? fhRev : yRevenue;
+        if (rev != null) {
+          edgarFund.revenue = rev;
+          edgarFund._sources = edgarFund._sources || {};
+          edgarFund._sources.revenue = fhRev != null
+            ? { type: 'finnhub', desc: 'Finnhub — TTM Revenue (EDGAR tag not matched)' }
+            : { type: 'yahoo',   desc: 'Yahoo Finance — TTM Revenue (EDGAR tag not matched)' };
+        }
       }
       _fund = edgarFund;
     } else if (fhFund) {
+      // Supplement Finnhub revenue gap from Yahoo v10
+      if (fhFund.financialData.totalRevenue == null && yRevenue != null) {
+        fhFund.financialData.totalRevenue = yRevenue;
+      }
       _fund = fhFund;
+    } else if (yahooFund) {
+      // Yahoo v10 as last-resort fund source (uses legacy panel path)
+      _fund = yahooFund;
     }
+
     if (_fund) {
       buildHeader(_v7, _chartMeta, _fund, _fh);
       renderDataPanel(_v7, _fund, _chartMeta, _fh);
@@ -787,8 +807,27 @@ function attachTickerAutocomplete(input, onSelect) {
   let debounce = null;
   let activeIdx = -1;
   let lastResults = [];
+  let docClickListener = null;
 
-  function hideDrop() { drop.style.display = 'none'; activeIdx = -1; }
+  function hideDrop() {
+    drop.style.display = 'none';
+    activeIdx = -1;
+    if (docClickListener) {
+      document.removeEventListener('click', docClickListener);
+      docClickListener = null;
+    }
+  }
+
+  function showDrop() {
+    drop.style.display = 'block';
+    if (!docClickListener) {
+      docClickListener = e => {
+        if (!input.contains(e.target) && !drop.contains(e.target)) hideDrop();
+      };
+      // Defer so the click that opened the drop doesn't immediately close it
+      setTimeout(() => document.addEventListener('click', docClickListener), 0);
+    }
+  }
 
   function buildDrop(results) {
     lastResults = results;
@@ -805,7 +844,7 @@ function attachTickerAutocomplete(input, onSelect) {
       item.addEventListener('mousedown', e => { e.preventDefault(); onSelect(r.symbol); hideDrop(); });
       drop.appendChild(item);
     });
-    drop.style.display = 'block';
+    showDrop();
   }
 
   input.addEventListener('input', () => {
@@ -830,10 +869,6 @@ function attachTickerAutocomplete(input, onSelect) {
       return;
     } else if (e.key === 'Escape') { hideDrop(); return; }
     items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
-  });
-
-  document.addEventListener('click', e => {
-    if (!input.contains(e.target) && !drop.contains(e.target)) hideDrop();
   });
 }
 
