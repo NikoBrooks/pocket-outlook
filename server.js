@@ -13,6 +13,97 @@ const EDGAR_HEADERS = { 'User-Agent': SEC_UA, 'Accept': 'application/json' };
 // ── Serve frontend ──────────────────────────────────────────────────────────
 app.use(express.static(__dirname));
 
+// ── Generic proxy with caching ───────────────────────────────────────────────
+// Replaces browser-side CORS proxies (corsproxy.io, allorigins.win) with a
+// fast, cached, server-side fetch.  Only whitelisted hosts are allowed.
+
+const ALLOWED_PROXY_HOSTS = new Set([
+  'query1.finance.yahoo.com',
+  'query2.finance.yahoo.com',
+  'api.coingecko.com',
+  'rss.nytimes.com',
+  'www.marketwatch.com',
+  'feeds.content.dowjones.io',
+  'feeds.feedburner.com',
+  'finnhub.io',
+]);
+
+// TTL in ms keyed on hostname fragment
+const PROXY_TTL = [
+  ['finance.yahoo.com', 30_000],   // live prices — 30 s
+  ['coingecko.com',     60_000],   // crypto     — 1 min
+  ['finnhub.io',        30_000],   // live prices — 30 s
+];
+const PROXY_TTL_DEFAULT = 5 * 60_000; // news/RSS  — 5 min
+
+const _proxyCache = new Map();
+
+function proxyTtl(hostname) {
+  for (const [fragment, ttl] of PROXY_TTL) {
+    if (hostname.includes(fragment)) return ttl;
+  }
+  return PROXY_TTL_DEFAULT;
+}
+
+// Strip cache-busting params that were only needed for third-party CORS proxies
+function normalizeProxyUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    u.searchParams.delete('_cb');
+    return u.toString();
+  } catch { return urlStr; }
+}
+
+app.get('/api/proxy', async (req, res) => {
+  const raw = req.query.url;
+  if (!raw) return res.status(400).json({ error: 'url param required' });
+
+  let target;
+  try { target = new URL(normalizeProxyUrl(raw)); } catch { return res.status(400).json({ error: 'Invalid URL' }); }
+
+  if (!ALLOWED_PROXY_HOSTS.has(target.hostname)) {
+    return res.status(403).json({ error: `Host not allowed: ${target.hostname}` });
+  }
+
+  const cacheKey = target.toString(); // normalized (no _cb)
+  const ttl = proxyTtl(target.hostname);
+  const cached = _proxyCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < ttl) {
+    res.set('Content-Type', cached.contentType);
+    return res.send(cached.body);
+  }
+
+  try {
+    const upstream = await fetch(target.toString(), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/html, application/xml, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: 'Upstream error', status: upstream.status });
+    }
+
+    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+    const body = await upstream.text(); // works for both JSON and XML
+
+    _proxyCache.set(cacheKey, { body, contentType, ts: Date.now() });
+    // Evict oldest entries when cache gets large
+    if (_proxyCache.size > 800) {
+      const oldest = [..._proxyCache.keys()].slice(0, 200);
+      oldest.forEach(k => _proxyCache.delete(k));
+    }
+
+    res.set('Content-Type', contentType);
+    res.send(body);
+  } catch (err) {
+    console.error('[proxy]', target.hostname, err.message);
+    res.status(502).json({ error: 'Proxy fetch failed', detail: err.message });
+  }
+});
+
 // ── CIK cache (populated once, refreshed weekly) ────────────────────────────
 let _cikMap = null;
 let _cikTs  = 0;

@@ -227,21 +227,9 @@ async function fetchRSS(key) {
     } catch(e) {}
 
     try {
-      const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl));
+      const r = await fetch('/api/proxy?url=' + encodeURIComponent(rssUrl));
       const txt = await r.text();
       render(parseXML(txt)); return;
-    } catch(e) {}
-
-    try {
-      const r = await fetch('https://corsproxy.io/?url=' + encodeURIComponent(rssUrl));
-      const txt = await r.text();
-      render(parseXML(txt)); return;
-    } catch(e) {}
-
-    try {
-      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl));
-      const d = await r.json();
-      if (d.contents) { render(parseXML(d.contents)); return; }
     } catch(e) {}
   }
 

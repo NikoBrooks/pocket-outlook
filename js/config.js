@@ -2,18 +2,13 @@ export const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
 export const FK = 'd6jikipr01qkvh5q2pugd6jikipr01qkvh5q2pv0';
 export const FINNHUB = 'https://finnhub.io/api/v1';
 
-// Multiple proxies tried in order
+// Route all external fetches through our own backend proxy (no CORS, cached)
 export const PROXIES = [
-  'https://corsproxy.io/?url=',       // no caching, best for live data
-  'https://api.allorigins.win/raw?url=',
-  'https://thingproxy.freeboard.io/fetch/',
+  '/api/proxy?url=',
 ];
 
-// Chart data needs fresh prices — always skip cached proxies
 export const CHART_PROXIES = [
-  'https://corsproxy.io/?url=',       // no cache
-  'https://corsproxy.io/?url=',       // retry same
-  'https://api.allorigins.win/raw?url=',
+  '/api/proxy?url=',
 ];
 
 export const PROXY = PROXIES[0];
