@@ -10,6 +10,89 @@ const PORT = process.env.PORT || 3000;
 const SEC_UA = process.env.SEC_UA || 'pocket-outlook/1.0 (contact@example.com)';
 const EDGAR_HEADERS = { 'User-Agent': SEC_UA, 'Accept': 'application/json' };
 
+const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+
+// Yahoo symbol → stooq symbol mapping
+const STOOQ_MAP = {
+  '^GSPC':     '^spx',
+  '^DJI':      '^dji',
+  '^IXIC':     '^ndq',
+  'GC=F':      'xauusd',
+  'BZ=F':      'cl.f',
+  '^TNX':      'tnx.b',
+  '^TYX':      'tyx.b',
+  'DX-Y.NYB':  'dx.f',
+};
+
+function toStooqSymbol(symbol) {
+  if (STOOQ_MAP[symbol]) return STOOQ_MAP[symbol];
+  if (/^[A-Z]{1,6}$/.test(symbol)) return symbol.toLowerCase() + '.us';
+  return null;
+}
+
+const STOOQ_RANGE_DAYS = { '1d': 3, '5d': 7, '1mo': 35, '3mo': 95, '6mo': 185, '1y': 370, '2y': 740, '5y': 1830 };
+
+async function fetchStooqChart(symbol, range) {
+  const stooqSym = toStooqSymbol(symbol);
+  if (!stooqSym) return null;
+
+  const isWeekly = range === '2y' || range === '5y';
+  const endDate  = new Date();
+  const startDate = new Date(Date.now() - (STOOQ_RANGE_DAYS[range] || 370) * 86400000);
+  const d1 = startDate.toISOString().slice(0, 10).replace(/-/g, '');
+  const d2 = endDate.toISOString().slice(0, 10).replace(/-/g, '');
+  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSym)}&i=${isWeekly ? 'w' : 'd'}&d1=${d1}&d2=${d2}`;
+
+  const r = await fetch(url, {
+    headers: { 'User-Agent': BROWSER_UA },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r.ok) return null;
+
+  const text = await r.text();
+  if (!text || text.trim().toLowerCase().startsWith('no data')) return null;
+
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return null;
+
+  const hdr   = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const iDate  = hdr.indexOf('date');
+  const iOpen  = hdr.indexOf('open');
+  const iHigh  = hdr.indexOf('high');
+  const iLow   = hdr.indexOf('low');
+  const iClose = hdr.indexOf('close');
+  const iVol   = hdr.indexOf('volume');
+  if (iDate === -1 || iClose === -1) return null;
+
+  const linePoints = [], ohlcPoints = [], volumePoints = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',');
+    const dateStr = cols[iDate]?.trim();
+    const close   = parseFloat(cols[iClose]);
+    if (!dateStr || isNaN(close)) continue;
+
+    const ts   = new Date(dateStr + 'T16:00:00Z').getTime(); // market close approx
+    const prev = linePoints.length > 0 ? linePoints[linePoints.length - 1].y : close;
+    const vol  = iVol >= 0 ? Math.round(parseFloat(cols[iVol] || '0')) : 0;
+    const open = parseFloat(cols[iOpen]);
+    const high = parseFloat(cols[iHigh]);
+    const low  = parseFloat(cols[iLow]);
+
+    linePoints.push({ x: ts, y: close });
+    volumePoints.push({ x: ts, y: vol, up: close >= prev });
+    if (!isNaN(open) && !isNaN(high) && !isNaN(low)) {
+      ohlcPoints.push({ x: ts, o: open, h: high, l: low, c: close });
+    }
+  }
+
+  if (linePoints.length === 0) return null;
+
+  const livePrice = linePoints[linePoints.length - 1].y;
+  const prevClose = linePoints.length > 1 ? linePoints[linePoints.length - 2].y : livePrice;
+  return { linePoints, ohlcPoints, volumePoints, livePrice, prevClose, meta: { symbol } };
+}
+
 // ── Serve frontend ──────────────────────────────────────────────────────────
 app.use(express.static(__dirname));
 
@@ -262,6 +345,31 @@ app.get('/api/fundamentals/:ticker', async (req, res) => {
   } catch (err) {
     console.error(`[fundamentals] ${ticker}:`, err.message);
     res.status(500).json({ error: 'Failed to fetch fundamentals', detail: err.message });
+  }
+});
+
+// ── /api/eq-chart/:symbol ─────────────────────────────────────────────────────
+// Server-side chart data via stooq.com — free, no auth, no datacenter blocking.
+// Covers all US stocks + major indices (SPX, DJI, etc.) + Gold.
+// Does NOT have intraday data — the frontend falls back to Yahoo/corsproxy for 1d.
+
+app.get('/api/eq-chart/:symbol', async (req, res) => {
+  const symbol = decodeURIComponent(req.params.symbol).toUpperCase();
+  const range  = req.query.range || '1y';
+
+  const cacheKey = `stooq:${symbol}:${range}`;
+  const ttl = 15 * 60_000; // 15 min — stooq data is end-of-day
+  const hit = _proxyCache.get(cacheKey);
+  if (hit && Date.now() - hit.ts < ttl) return res.json(hit.body);
+
+  try {
+    const result = await fetchStooqChart(symbol, range);
+    if (!result) return res.status(404).json({ error: `No chart data for ${symbol}` });
+    _proxyCache.set(cacheKey, { body: result, ts: Date.now() });
+    res.json(result);
+  } catch (err) {
+    console.error('[eq-chart]', symbol, err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

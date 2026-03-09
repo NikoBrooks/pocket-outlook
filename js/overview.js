@@ -70,13 +70,15 @@ export async function fetchAll() {
     fetchYahoo('%5EGSPC').then(d=>ok('spx',d)).catch(()=>fetchFinnhub('SPY').then(d=>ok('spx',d)).catch(()=>fail('spx'))),
     fetchYahoo('%5EIXIC').then(d=>ok('ndx',d)).catch(()=>fetchFinnhub('QQQ').then(d=>ok('ndx',d)).catch(()=>fail('ndx'))),
     fetchYahoo('%5EDJI').then(d=>ok('dji',d)).catch(()=>fetchFinnhub('DIA').then(d=>ok('dji',d)).catch(()=>fail('dji'))),
-    fetchYahoo('%5EVIX').then(d=>{
-      const card=document.getElementById('card-vix'),priceEl=document.getElementById('vix-price'),changeEl=document.getElementById('vix-change');
-      const up=d.change>=0; card.className='card '+(up?'down':'up');
-      priceEl.textContent=fmt(d.price); changeEl.className='change '+(up?'down':'up');
-      changeEl.textContent=(up?'+':'')+fmt(d.change)+' ('+(up?'+':'')+fmt(d.pct)+'%)';
-      setVixLabel(d.price); successCount++; updateStatus();
-    }).catch(()=>fail('vix')),
+    fetchYahoo('%5EVIX')
+      .catch(() => fetchFinnhub('^VIX'))
+      .then(d=>{
+        const card=document.getElementById('card-vix'),priceEl=document.getElementById('vix-price'),changeEl=document.getElementById('vix-change');
+        const up=d.change>=0; card.className='card '+(up?'down':'up');
+        priceEl.textContent=fmt(d.price); changeEl.className='change '+(up?'down':'up');
+        changeEl.textContent=(up?'+':'')+fmt(d.change)+' ('+(up?'+':'')+fmt(d.pct)+'%)';
+        setVixLabel(d.price); successCount++; updateStatus();
+      }).catch(()=>fail('vix')),
     fetchYahoo('%5ETNX').then(d=>ok('tny',d,'%',3)).catch(()=>fetchFinnhub('IEF').then(d=>ok('tny',d)).catch(()=>fail('tny'))),
     fetchYahoo('%5EIRX').then(d=>ok('tbill',d,'%',3)).catch(()=>fetchFinnhub('SHV').then(d=>ok('tbill',d)).catch(()=>fail('tbill'))),
     fetchYahoo('%5ETYX').then(d=>ok('tny30',d,'%',3)).catch(()=>fetchFinnhub('TLT').then(d=>ok('tny30',d)).catch(()=>fail('tny30'))),

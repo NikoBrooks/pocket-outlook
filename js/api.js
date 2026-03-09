@@ -112,6 +112,29 @@ export async function fetchCrypto(id) {
 }
 
 export async function fetchChartData(symbol, range, interval) {
+  // Primary: server-side stooq endpoint — no Yahoo needed, works from Railway.
+  // Skip for intraday (stooq is end-of-day only).
+  if (interval !== '5m' && interval !== '30m') {
+    try {
+      const decoded = decodeURIComponent(symbol);
+      const r = await fetchWithTimeout('/api/eq-chart/' + encodeURIComponent(decoded) + '?range=' + range, {}, 8000);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.linePoints?.length > 0) {
+          const points = d.linePoints.map(p => {
+            const date = new Date(p.x);
+            const label = interval === '1wk'
+              ? date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+              : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return { x: label, y: p.y };
+          });
+          return { points, livePrice: d.livePrice, prevClose: d.prevClose };
+        }
+      }
+    } catch(e) {}
+  }
+
+  // Fallback: Yahoo Finance via proxy (server proxy first, corsproxy.io second)
   let data;
   for (const proxy of CHART_PROXIES) {
     for (const base of [YAHOO, YAHOO2]) {
@@ -461,6 +484,18 @@ export async function fetchEdgarFundamentals(ticker) {
 }
 
 export async function fetchEqChartData(symbol, range, interval) {
+  // Primary: server-side stooq endpoint (end-of-day data, skip for intraday).
+  if (interval !== '5m' && interval !== '30m') {
+    try {
+      const r = await fetchWithTimeout('/api/eq-chart/' + encodeURIComponent(symbol) + '?range=' + range, {}, 8000);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.linePoints?.length > 1) return d;
+      }
+    } catch(e) {}
+  }
+
+  // Fallback: Yahoo Finance via proxy (corsproxy.io second in CHART_PROXIES)
   let data;
   for (const proxy of CHART_PROXIES) {
     for (const base of [YAHOO, YAHOO2]) {
