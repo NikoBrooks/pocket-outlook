@@ -1,4 +1,4 @@
-import { fetchYahoo, fetchYahooV7Quote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData, searchTickers, fetchFundamentals } from './api.js';
+import { fetchYahoo, fetchFinnhub, fetchYahooV7Quote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData, searchTickers, fetchFundamentals } from './api.js';
 import { fmt, fmtFinNum, fmtPct, getRaw } from './utils.js';
 
 // ── Module State ──
@@ -87,7 +87,10 @@ export async function renderWatchlist() {
     if (g.open && g.tickers.length > 0) {
       const rows = await Promise.all(g.tickers.map(async sym => {
         try { const d = await fetchYahoo(sym); return { sym, price: d.price, change: d.change, pct: d.pct, ok: true }; }
-        catch(e) { return { sym, ok: false }; }
+        catch(e) {
+          try { const d = await fetchFinnhub(sym); return { sym, price: d.price, change: d.change, pct: d.pct, ok: true }; }
+          catch(e2) { return { sym, ok: false }; }
+        }
       }));
       rows.forEach(r => {
         const item = document.createElement('div');
@@ -210,9 +213,9 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
   const changePct = v7?.regularMarketChangePercent ?? getRaw(prc.regularMarketChangePercent) ?? (change != null && _prev ? change / _prev : null);
   const vol     = v7?.regularMarketVolume  ?? getRaw(prc.regularMarketVolume)  ?? chartMeta?.regularMarketVolume;
   const avgVol  = v7?.averageDailyVolume3Month ?? getRaw(prc.averageDailyVolume3Month) ?? getRaw(sum.averageDailyVolume3Month);
-  const high52  = v7?.fiftyTwoWeekHigh ?? getRaw(sum.fiftyTwoWeekHigh) ?? chartMeta?.fiftyTwoWeekHigh;
-  const low52   = v7?.fiftyTwoWeekLow  ?? getRaw(sum.fiftyTwoWeekLow)  ?? chartMeta?.fiftyTwoWeekLow;
-  const beta    = v7?.beta ?? getRaw(sum.beta);
+  const high52  = v7?.fiftyTwoWeekHigh ?? getRaw(sum.fiftyTwoWeekHigh) ?? fh?.summaryDetail?.fiftyTwoWeekHigh ?? chartMeta?.fiftyTwoWeekHigh;
+  const low52   = v7?.fiftyTwoWeekLow  ?? getRaw(sum.fiftyTwoWeekLow)  ?? fh?.summaryDetail?.fiftyTwoWeekLow  ?? chartMeta?.fiftyTwoWeekLow;
+  const beta    = v7?.beta ?? getRaw(sum.beta) ?? fh?.summaryDetail?.beta;
   const fwdPE   = v7?.forwardPE ?? getRaw(prc.forwardPE) ?? getRaw(sum.forwardPE) ?? (v7?.epsForward != null && price != null ? price / v7.epsForward : null);
   const exchange = v7?.fullExchangeName || v7?.exchange || chartMeta?.fullExchangeName || '—';
   const divYield = v7?.trailingAnnualDividendYield ?? v7?.dividendYield ?? getRaw(fh?.financialData?.dividendYield) ?? null;
@@ -835,7 +838,15 @@ export async function loadEquityStock(symbol) {
 
   loadEqChart(symbol, eqCurrentRange, eqCurrentInterval)
     .then(result => {
-      _chartMeta = result?.meta || null;
+      // Enrich meta with chart-derived price so the panel shows something
+      // even when Yahoo v7 quote is unavailable (e.g. stooq meta only has symbol).
+      _chartMeta = result?.meta
+        ? {
+            ...result.meta,
+            regularMarketPrice: result.meta.regularMarketPrice ?? result.livePrice,
+            previousClose: result.meta.previousClose ?? result.meta.chartPreviousClose ?? result.prevClose,
+          }
+        : null;
       buildHeader(_v7, _chartMeta, _fund, _fh);
       renderDataPanel(_v7, _fund, _chartMeta, _fh);
     }).catch(() => {});

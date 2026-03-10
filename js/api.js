@@ -1,7 +1,31 @@
 import { PROXIES, CHART_PROXIES, YAHOO, YAHOO2, FINNHUB, FK, RSS2JSON } from './config.js';
 import { fetchWithTimeout } from './utils.js';
 
+// ── Yahoo Finance crumb (client-side cache) ───────────────────────────────────
+// The server proxy adds the crumb automatically for /api/proxy requests.
+// For external proxies (corsproxy.io), we append it to the Yahoo URL ourselves.
+let _crumb = null, _crumbTs = 0;
+const _CRUMB_TTL = 50 * 60_000;
+
+async function getYahooCrumb() {
+  if (_crumb && Date.now() - _crumbTs < _CRUMB_TTL) return _crumb;
+  try {
+    const r = await fetch('/api/yahoo-crumb', { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j.crumb) { _crumb = j.crumb; _crumbTs = Date.now(); }
+    return _crumb;
+  } catch(e) { return null; }
+}
+
+// Append crumb to a Yahoo URL (used only for non-server proxies)
+function _withCrumb(url, crumb) {
+  if (!crumb) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'crumb=' + encodeURIComponent(crumb);
+}
+
 export async function fetchYahoo(symbol) {
+  const crumb = await getYahooCrumb().catch(() => null);
   const yahooUrls = [
     YAHOO + symbol + '?range=1d&interval=1m',
     YAHOO2 + symbol + '?range=1d&interval=1m',
@@ -11,7 +35,9 @@ export async function fetchYahoo(symbol) {
     for (const yurl of yahooUrls) {
       if (data?.chart?.result?.[0]) break;
       try {
-        const res = await fetch(proxy + encodeURIComponent(yurl + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), {cache: 'no-store'});
+        // Server proxy adds crumb internally; external proxies need it in the URL
+        const targetUrl = proxy.startsWith('/') ? yurl : _withCrumb(yurl, crumb);
+        const res = await fetch(proxy + encodeURIComponent(targetUrl + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), {cache: 'no-store'});
         if (!res.ok) continue;
         const j = await res.json();
         if (j?.chart?.result?.[0]) { data = j; break; }
@@ -135,12 +161,15 @@ export async function fetchChartData(symbol, range, interval) {
   }
 
   // Fallback: Yahoo Finance via proxy (server proxy first, corsproxy.io second)
+  const crumb = await getYahooCrumb().catch(() => null);
   let data;
   for (const proxy of CHART_PROXIES) {
     for (const base of [YAHOO, YAHOO2]) {
       if (data?.chart?.result?.[0]) break;
       try {
-        const res = await fetch(proxy + encodeURIComponent(base + symbol + '?range=' + range + '&interval=' + interval + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), {cache: 'no-store'});
+        const yahooUrl = base + symbol + '?range=' + range + '&interval=' + interval;
+        const targetUrl = proxy.startsWith('/') ? yahooUrl : _withCrumb(yahooUrl, crumb);
+        const res = await fetch(proxy + encodeURIComponent(targetUrl + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), {cache: 'no-store'});
         if (!res.ok) continue;
         const j = await res.json();
         if (j?.chart?.result?.[0]) { data = j; break; }
@@ -193,6 +222,7 @@ export async function fetchChartData(symbol, range, interval) {
 }
 
 export async function fetchYahooV7Quote(symbol) {
+  const crumb = await getYahooCrumb().catch(() => null);
   const yurls = [
     'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + symbol,
     'https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + symbol,
@@ -200,7 +230,8 @@ export async function fetchYahooV7Quote(symbol) {
   for (const proxy of PROXIES) {
     for (const yurl of yurls) {
       try {
-        const res = await fetchWithTimeout(proxy + encodeURIComponent(yurl + '&_cb=' + Date.now()), { cache: 'no-store' }, 5000);
+        const targetUrl = proxy.startsWith('/') ? yurl : _withCrumb(yurl, crumb);
+        const res = await fetchWithTimeout(proxy + encodeURIComponent(targetUrl + '&_cb=' + Date.now()), { cache: 'no-store' }, 5000);
         if (!res.ok) continue;
         const j = await res.json();
         const result = j?.quoteResponse?.result?.[0];
@@ -214,10 +245,23 @@ export async function fetchYahooV7Quote(symbol) {
 export async function searchTickers(query) {
   const q = query.trim();
   if (!q) return [];
+
+  // Server endpoint: holds the session crumb + cookie, tries Yahoo then Finnhub
+  try {
+    const r = await fetchWithTimeout('/api/search?q=' + encodeURIComponent(q), {}, 5000);
+    if (r.ok) {
+      const results = await r.json();
+      if (results.length) return results;
+    }
+  } catch(e) {}
+
+  // Client-side fallback (proxy loop with crumb)
+  const crumb = await getYahooCrumb().catch(() => null);
   const url = 'https://query1.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(q) + '&quotesCount=8&newsCount=0&enableFuzzyQuery=true&quotesQueryId=tss_match_phrase_query';
   for (const proxy of PROXIES) {
     try {
-      const res = await fetchWithTimeout(proxy + encodeURIComponent(url), {}, 4000);
+      const targetUrl = proxy.startsWith('/') ? url : _withCrumb(url, crumb);
+      const res = await fetchWithTimeout(proxy + encodeURIComponent(targetUrl), {}, 4000);
       if (!res.ok) continue;
       const j = await res.json();
       const quotes = j?.finance?.result?.[0]?.quotes || j?.quotes || [];
@@ -228,10 +272,28 @@ export async function searchTickers(query) {
         .map(r => ({ symbol: r.symbol, name: r.longname || r.shortname || r.symbol, type: r.quoteType, exchange: r.exchange }));
     } catch(e) {}
   }
+  // Fallback: Finnhub symbol search (direct API, no proxy needed)
+  try {
+    const fhRes = await fetchWithTimeout(FINNHUB + '/search?q=' + encodeURIComponent(q) + '&token=' + FK, {}, 4000);
+    if (fhRes.ok) {
+      const fhj = await fhRes.json();
+      const results = (fhj.result || [])
+        .filter(r => r.symbol && (r.type === 'Common Stock' || r.type === 'ETP'))
+        .slice(0, 7)
+        .map(r => ({
+          symbol: r.displaySymbol || r.symbol,
+          name: r.description || r.symbol,
+          type: r.type === 'ETP' ? 'ETF' : 'EQUITY',
+          exchange: '',
+        }));
+      if (results.length) return results;
+    }
+  } catch(e) {}
   return [];
 }
 
 export async function fetchFundamentals(symbol) {
+  const crumb = await getYahooCrumb().catch(() => null);
   const modules = 'price,summaryDetail,financialData,defaultKeyStatistics';
   const apiUrls = [
     'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + symbol + '?modules=' + modules + '&formatted=false&_cb=',
@@ -242,7 +304,9 @@ export async function fetchFundamentals(symbol) {
   for (const proxy of PROXIES) {
     for (const base of apiUrls) {
       try {
-        const res = await fetchWithTimeout(proxy + encodeURIComponent(base + Date.now()), { cache: 'no-store' }, 5000);
+        const fullUrl = base + Date.now();
+        const targetUrl = proxy.startsWith('/') ? fullUrl : _withCrumb(fullUrl, crumb);
+        const res = await fetchWithTimeout(proxy + encodeURIComponent(targetUrl), { cache: 'no-store' }, 5000);
         if (!res.ok) continue;
         const j = await res.json();
         if (j?.quoteSummary?.result?.[0]) return j.quoteSummary.result[0];
@@ -295,6 +359,19 @@ async function getEdgarCik(ticker) {
 }
 
 export async function fetchEdgarFundamentals(ticker) {
+  // Try the server endpoint first — it caches results 6 hours, handles the
+  // heavy 26-request SEC fan-out server-side with proper User-Agent.
+  try {
+    const r = await fetchWithTimeout('/api/fundamentals/' + encodeURIComponent(ticker), {}, 12000);
+    if (r.ok) {
+      const d = await r.json();
+      if (d._source === 'edgar' && (d.revenue || d.netIncome || d.operatingCF || d.totalAssets)) {
+        return d;
+      }
+    }
+  } catch(e) {}
+
+  // Fall back to direct browser-side SEC EDGAR calls
   try {
     const cik = await getEdgarCik(ticker);
     if (!cik) return null;
@@ -496,12 +573,15 @@ export async function fetchEqChartData(symbol, range, interval) {
   }
 
   // Fallback: Yahoo Finance via proxy (corsproxy.io second in CHART_PROXIES)
+  const crumb = await getYahooCrumb().catch(() => null);
   let data;
   for (const proxy of CHART_PROXIES) {
     for (const base of [YAHOO, YAHOO2]) {
       if (data?.chart?.result?.[0]) break;
       try {
-        const res = await fetch(proxy + encodeURIComponent(base + symbol + '?range=' + range + '&interval=' + interval + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), { cache: 'no-store' });
+        const yahooUrl = base + symbol + '?range=' + range + '&interval=' + interval;
+        const targetUrl = proxy.startsWith('/') ? yahooUrl : _withCrumb(yahooUrl, crumb);
+        const res = await fetch(proxy + encodeURIComponent(targetUrl + '&_cb=' + Date.now() + '_' + Math.random().toString(36).slice(2)), { cache: 'no-store' });
         if (!res.ok) continue;
         const j = await res.json();
         if (j?.chart?.result?.[0]) { data = j; break; }
@@ -509,6 +589,44 @@ export async function fetchEqChartData(symbol, range, interval) {
     }
     if (data?.chart?.result?.[0]) break;
   }
+
+  // Last resort for intraday: Finnhub stock candles (stocks only, not indices)
+  if (!data?.chart?.result?.[0] && (interval === '5m' || interval === '30m') &&
+      !symbol.startsWith('^') && !symbol.startsWith('%5E')) {
+    try {
+      const resolution = interval === '5m' ? '5' : '30';
+      const toTs = Math.floor(Date.now() / 1000);
+      const fromTs = interval === '5m'
+        ? Math.floor(new Date().setHours(0, 0, 0, 0) / 1000)
+        : toTs - (7 * 24 * 3600);
+      const fhRes = await fetchWithTimeout(
+        FINNHUB + '/stock/candle?symbol=' + encodeURIComponent(symbol) +
+        '&resolution=' + resolution + '&from=' + fromTs + '&to=' + toTs + '&token=' + FK,
+        {}, 8000
+      );
+      if (fhRes.ok) {
+        const fh = await fhRes.json();
+        if (fh.s === 'ok' && fh.t?.length > 0) {
+          const lp = [], op = [], vp = [];
+          for (let i = 0; i < fh.t.length; i++) {
+            const ts = fh.t[i] * 1000;
+            const c = fh.c[i], o = fh.o?.[i], h = fh.h?.[i], l = fh.l?.[i], v = fh.v?.[i] || 0;
+            if (c == null) continue;
+            const prev = i > 0 ? (fh.c[i - 1] ?? c) : c;
+            lp.push({ x: ts, y: c });
+            vp.push({ x: ts, y: v, up: c >= prev });
+            if (o != null && h != null && l != null) op.push({ x: ts, o, h, l, c });
+          }
+          if (lp.length > 0) {
+            const livePrice = fh.c[fh.c.length - 1];
+            const prevClose = lp.length > 1 ? fh.c[0] : livePrice;
+            return { linePoints: lp, ohlcPoints: op, volumePoints: vp, livePrice, prevClose, meta: {} };
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
   if (!data?.chart?.result?.[0]) throw new Error('No chart data for ' + symbol);
   const result = data.chart.result[0];
   const meta = result.meta;

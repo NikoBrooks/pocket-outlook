@@ -12,6 +12,9 @@ const EDGAR_HEADERS = { 'User-Agent': SEC_UA, 'Accept': 'application/json' };
 
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
 
+const FINNHUB_API = 'https://finnhub.io/api/v1';
+const FINNHUB_KEY = process.env.FINNHUB_KEY || 'd6jikipr01qkvh5q2pugd6jikipr01qkvh5q2pv0';
+
 // Yahoo symbol → stooq symbol mapping
 const STOOQ_MAP = {
   '^GSPC':     '^spx',
@@ -121,6 +124,51 @@ const PROXY_TTL_DEFAULT = 5 * 60_000; // news/RSS  — 5 min
 
 const _proxyCache = new Map();
 
+// ── Yahoo Finance crumb management ───────────────────────────────────────────
+// Yahoo v8/v10/v11 require a crumb + session cookie since mid-2024.
+// We fetch them server-side once and reuse for all proxied Yahoo requests.
+let _yahooCrumb = null;
+let _yahooCookieStr = null;
+let _yahooCrumbTs = 0;
+const CRUMB_TTL = 55 * 60_000; // 55 minutes
+
+async function refreshYahooCrumb() {
+  try {
+    const homeRes = await fetch('https://finance.yahoo.com/', {
+      headers: {
+        'User-Agent': BROWSER_UA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      redirect: 'follow',
+    });
+    const rawCookies = typeof homeRes.headers.getSetCookie === 'function'
+      ? homeRes.headers.getSetCookie() : [];
+    _yahooCookieStr = rawCookies.map(c => c.split(';')[0]).join('; ');
+    const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/finance/crumb', {
+      headers: { 'User-Agent': BROWSER_UA, 'Cookie': _yahooCookieStr, 'Accept': '*/*' },
+    });
+    if (!crumbRes.ok) { console.error('[yahoo-crumb] HTTP', crumbRes.status); return null; }
+    const crumb = (await crumbRes.text()).trim();
+    if (!crumb || crumb.length > 40 || crumb.includes('<') || crumb.includes('{')) {
+      console.error('[yahoo-crumb] invalid:', crumb.slice(0, 60)); return null;
+    }
+    _yahooCrumb = crumb; _yahooCrumbTs = Date.now();
+    console.log('[yahoo-crumb] refreshed OK');
+    return crumb;
+  } catch (err) {
+    console.error('[yahoo-crumb] failed:', err.message); return null;
+  }
+}
+
+async function getYahooCrumb() {
+  if (_yahooCrumb && Date.now() - _yahooCrumbTs < CRUMB_TTL) return _yahooCrumb;
+  return refreshYahooCrumb();
+}
+
+// Warm up crumb on server start
+refreshYahooCrumb();
+
 function proxyTtl(hostname) {
   for (const [fragment, ttl] of PROXY_TTL) {
     if (hostname.includes(fragment)) return ttl;
@@ -133,9 +181,16 @@ function normalizeProxyUrl(urlStr) {
   try {
     const u = new URL(urlStr);
     u.searchParams.delete('_cb');
+    u.searchParams.delete('crumb'); // server adds its own crumb; don't pollute cache key
     return u.toString();
   } catch { return urlStr; }
 }
+
+app.get('/api/yahoo-crumb', async (req, res) => {
+  const crumb = await getYahooCrumb();
+  if (!crumb) return res.status(503).json({ error: 'Yahoo crumb unavailable' });
+  res.json({ crumb });
+});
 
 app.get('/api/proxy', async (req, res) => {
   const raw = req.query.url;
@@ -157,11 +212,26 @@ app.get('/api/proxy', async (req, res) => {
   }
 
   try {
-    const upstream = await fetch(target.toString(), {
+    // For Yahoo Finance: inject crumb into the URL + session cookie into headers.
+    // Use a cloned URL so the cache key (target.toString()) stays stable.
+    let upstreamUrl = target.toString();
+    const extraHeaders = {};
+    if (target.hostname.includes('finance.yahoo.com')) {
+      const crumb = await getYahooCrumb();
+      if (crumb) {
+        const u = new URL(upstreamUrl);
+        u.searchParams.set('crumb', crumb);
+        upstreamUrl = u.toString();
+        if (_yahooCookieStr) extraHeaders['Cookie'] = _yahooCookieStr;
+      }
+    }
+
+    const upstream = await fetch(upstreamUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'User-Agent': BROWSER_UA,
         'Accept': 'application/json, text/html, application/xml, */*',
         'Accept-Language': 'en-US,en;q=0.9',
+        ...extraHeaders,
       },
     });
 
@@ -270,24 +340,62 @@ function firstOf(concepts, extractor) {
   return null;
 }
 
-// ── /api/fundamentals/:ticker ────────────────────────────────────────────────
+// ── Rich helpers with source-tracking (used by expanded /api/fundamentals) ────
+/** TTM returning { val, entry, method } so the client can show filing provenance. */
+function ttmFull(entries) {
+  const f = entries
+    .filter(e => (e.form === '10-K' || e.form === '10-Q') && e.val != null && e.start)
+    .sort((a, b) => (new Date(b.end) - new Date(a.end)) || (pd(b) - pd(a)));
+  if (!f.length) return null;
+  const recentK = f.find(e => e.form === '10-K' && pd(e) > 340);
+  const recentQ = f.find(e => e.form === '10-Q' && pd(e) > 60);
+  if (!recentQ && !recentK) return null;
+  if (!recentQ) return { val: recentK.val, entry: recentK, method: 'Annual' };
+  if (!recentK) return { val: recentQ.val * (365 / pd(recentQ)), entry: recentQ, method: 'Annualized from ' + (recentQ.fp || 'Q') };
+  if (new Date(recentK.end) >= new Date(recentQ.end)) return { val: recentK.val, entry: recentK, method: 'Annual' };
+  const qDate = new Date(recentQ.end), qd = pd(recentQ);
+  const priorQ = f.find(e => {
+    if (e.form !== '10-Q') return false;
+    const diff = (qDate - new Date(e.end)) / 86400000;
+    return diff > 300 && diff < 420 && Math.abs(pd(e) - qd) < 30;
+  });
+  if (!priorQ) return { val: recentK.val, entry: recentK, method: 'Annual (prior-year Q unavailable)' };
+  return { val: recentK.val + recentQ.val - priorQ.val, entry: recentK, method: 'TTM: ' + recentK.end.slice(0, 4) + ' annual + ' + recentQ.fp + ' − prior yr' };
+}
+
+/** Most-recent balance-sheet value with provenance. */
+function mrFull(entries) {
+  const f = entries
+    .filter(e => (e.form === '10-K' || e.form === '10-Q') && e.val != null)
+    .sort((a, b) => new Date(b.end) - new Date(a.end));
+  return f[0] ? { val: f[0].val, entry: f[0], method: 'Most recent balance sheet' } : null;
+}
+
+// ── Fundamentals cache (6-hour TTL — EDGAR filings rarely change intraday) ────
+const _fundCache = new Map();
+
+// ── /api/fundamentals/:ticker ─────────────────────────────────────────────────
+// Full EDGAR XBRL fundamentals: 26 concepts, TTM income statement + cash flow,
+// most-recent balance sheet, all computed ratios, filing provenance per metric.
+// Results cached 6 hours server-side — no repeated 26-request SEC fan-outs.
 app.get('/api/fundamentals/:ticker', async (req, res) => {
   const ticker = req.params.ticker.toUpperCase();
+
+  const hit = _fundCache.get(ticker);
+  if (hit && Date.now() - hit.ts < 6 * 60 * 60_000) return res.json(hit.data);
+
   try {
     const cik = await getCik(ticker);
-    if (!cik) {
-      return res.status(404).json({ error: `No SEC filing found for: ${ticker}` });
-    }
+    if (!cik) return res.status(404).json({ error: `No SEC filing found for: ${ticker}` });
 
-    // Fire all concept requests in parallel (~14 small files vs one 5–30 MB blob)
+    // 26 concept requests in parallel (~10-50 KB each vs a 5-30 MB companyfacts blob)
     const [
       cRev1, cRev2, cRev3, cRev4, cRev5, cRev6,
-      cNetInc,
-      cEpsDil,
-      cOpCF,
-      cCapex1, cCapex2,
-      cShares,
-      cEquity1, cEquity2,
+      cOpInc, cGrossProfit, cNetInc, cEpsDil,
+      cDa1, cDa2,
+      cOpCF, cCapex1, cCapex2,
+      cCash1, cCash2, cLtDebt1, cLtDebt2,
+      cShares, cCurrentA, cCurrentL, cAssets, cEquity1, cEquity2, cLiab,
     ] = await Promise.all([
       getConcept(cik, 'RevenueFromContractWithCustomerExcludingAssessedTax'),
       getConcept(cik, 'RevenueFromContractWithCustomerIncludingAssessedTax'),
@@ -295,57 +403,207 @@ app.get('/api/fundamentals/:ticker', async (req, res) => {
       getConcept(cik, 'SalesRevenueNet'),
       getConcept(cik, 'NetRevenues'),
       getConcept(cik, 'OperatingRevenue'),
+      getConcept(cik, 'OperatingIncomeLoss'),
+      getConcept(cik, 'GrossProfit'),
       getConcept(cik, 'NetIncomeLoss'),
       getConcept(cik, 'EarningsPerShareDiluted'),
+      getConcept(cik, 'DepreciationDepletionAndAmortization'),
+      getConcept(cik, 'DepreciationAndAmortization'),
       getConcept(cik, 'NetCashProvidedByUsedInOperatingActivities'),
       getConcept(cik, 'PaymentsToAcquirePropertyPlantAndEquipment'),
       getConcept(cik, 'CapitalExpenditureContinuingOperations'),
+      getConcept(cik, 'CashAndCashEquivalentsAtCarryingValue'),
+      getConcept(cik, 'CashCashEquivalentsAndShortTermInvestments'),
+      getConcept(cik, 'LongTermDebt'),
+      getConcept(cik, 'LongTermDebtNoncurrent'),
       getConcept(cik, 'CommonStockSharesOutstanding'),
+      getConcept(cik, 'AssetsCurrent'),
+      getConcept(cik, 'LiabilitiesCurrent'),
+      getConcept(cik, 'Assets'),
       getConcept(cik, 'StockholdersEquity'),
       getConcept(cik, 'StockholdersEquityAttributableToParent'),
+      getConcept(cik, 'Liabilities'),
     ]);
 
-    // ── Flow metrics (TTM) ──
-    const revenue = firstOf(
-      [cRev1, cRev2, cRev3, cRev4, cRev5, cRev6],
-      c => ttm(usd(c))
-    );
-    const netIncome          = ttm(usd(cNetInc));
-    const eps                = ttm(usdps(cEpsDil));
-    const operatingCashFlow  = ttm(usd(cOpCF));
-    const capexRaw           = firstOf([cCapex1, cCapex2], c => ttm(usd(c)));
-    const capex              = capexRaw != null ? Math.abs(capexRaw) : null;
-    const freeCashFlow       = operatingCashFlow != null && capex != null
-      ? operatingCashFlow - capex : null;
+    const _sources = {};
 
-    // ── Balance-sheet metrics (most recent) ──
-    const sharesOutstanding  = latest(shares(cShares));
-    const bookValue          = firstOf([cEquity1, cEquity2], c => latest(usd(c)));
-    const bookValuePerShare  = bookValue != null && sharesOutstanding
-      ? bookValue / sharesOutstanding : null;
+    function saveSrc(key, tag, r) {
+      _sources[key] = {
+        type: 'edgar', tag, cik,
+        form: r.entry.form,
+        period: (r.entry.fp || 'FY') + ' ' + (r.entry.end?.slice(0, 4) || ''),
+        end: r.entry.end, filed: r.entry.filed, accn: r.entry.accn,
+        method: r.method,
+      };
+    }
+    function saveCmp(key, formula) { _sources[key] = { type: 'computed', formula }; }
 
-    if (!revenue && !netIncome && !operatingCashFlow) {
+    function extractP(key, pairs) {
+      for (const [c, tag] of pairs) {
+        const r = ttmFull(usd(c));
+        if (r?.val != null) { saveSrc(key, tag, r); return r.val; }
+      }
+      return null;
+    }
+    function extractI(key, pairs) {
+      for (const [c, tag] of pairs) {
+        const r = mrFull(usd(c));
+        if (r?.val != null) { saveSrc(key, tag, r); return r.val; }
+      }
+      return null;
+    }
+    function extractPPS(key, pairs) {
+      for (const [c, tag] of pairs) {
+        const r = ttmFull(usdps(c));
+        if (r?.val != null) { saveSrc(key, tag, r); return r.val; }
+      }
+      return null;
+    }
+    function extractISh(key, pairs) {
+      for (const [c, tag] of pairs) {
+        const r = mrFull(shares(c));
+        if (r?.val != null) { saveSrc(key, tag, r); return r.val; }
+      }
+      return null;
+    }
+
+    // ── Income statement (TTM) ──
+    const revenue         = extractP('revenue', [
+      [cRev1, 'RevenueFromContractWithCustomerExcludingAssessedTax'],
+      [cRev2, 'RevenueFromContractWithCustomerIncludingAssessedTax'],
+      [cRev3, 'Revenues'], [cRev4, 'SalesRevenueNet'],
+      [cRev5, 'NetRevenues'], [cRev6, 'OperatingRevenue'],
+    ]);
+    const grossProfit     = extractP('grossProfit',     [[cGrossProfit, 'GrossProfit']]);
+    const operatingIncome = extractP('operatingIncome', [[cOpInc,       'OperatingIncomeLoss']]);
+    const netIncome       = extractP('netIncome',       [[cNetInc,      'NetIncomeLoss']]);
+    const epsDiluted      = extractPPS('epsDiluted',    [[cEpsDil,      'EarningsPerShareDiluted']]);
+    const da              = extractP('da', [
+      [cDa1, 'DepreciationDepletionAndAmortization'],
+      [cDa2, 'DepreciationAndAmortization'],
+    ]);
+
+    // ── Cash flow (TTM) ──
+    const operatingCF  = extractP('operatingCF', [[cOpCF, 'NetCashProvidedByUsedInOperatingActivities']]);
+    const capexRaw     = extractP('capex', [
+      [cCapex1, 'PaymentsToAcquirePropertyPlantAndEquipment'],
+      [cCapex2, 'CapitalExpenditureContinuingOperations'],
+    ]);
+    const capex        = capexRaw != null ? Math.abs(capexRaw) : null;
+    const freeCashFlow = operatingCF != null && capex != null ? operatingCF - capex : null;
+
+    // ── Balance sheet (most recent filing) ──
+    const totalAssets        = extractI('totalAssets',        [[cAssets,    'Assets']]);
+    const currentAssets      = extractI('currentAssets',      [[cCurrentA,  'AssetsCurrent']]);
+    const currentLiabilities = extractI('currentLiabilities', [[cCurrentL,  'LiabilitiesCurrent']]);
+    const totalLiabilities   = extractI('totalLiabilities',   [[cLiab,      'Liabilities']]);
+    const equity             = extractI('equity',             [[cEquity1, 'StockholdersEquity'], [cEquity2, 'StockholdersEquityAttributableToParent']]);
+    const cash               = extractI('cash',               [[cCash1, 'CashAndCashEquivalentsAtCarryingValue'], [cCash2, 'CashCashEquivalentsAndShortTermInvestments']]);
+    const longTermDebt       = extractI('longTermDebt',       [[cLtDebt1, 'LongTermDebt'], [cLtDebt2, 'LongTermDebtNoncurrent']]);
+    const sharesOut          = extractISh('sharesOut',        [[cShares, 'CommonStockSharesOutstanding']]);
+
+    if (!revenue && !netIncome && !operatingCF && !totalAssets) {
       return res.status(404).json({ error: `No XBRL data found for: ${ticker}` });
     }
 
-    res.json({
-      ticker,
-      cik,
-      metrics: {
-        eps,
-        revenue,
-        netIncome,
-        bookValue,
-        bookValuePerShare,
-        sharesOutstanding,
-        operatingCashFlow,
-        freeCashFlow,
-      },
-    });
+    // ── Computed ratios ──
+    const grossMargin  = grossProfit != null && revenue      ? grossProfit / revenue      : null;
+    const opMargin     = operatingIncome != null && revenue  ? operatingIncome / revenue  : null;
+    const netMargin    = netIncome != null && revenue        ? netIncome / revenue        : null;
+    const roe          = netIncome != null && equity && equity !== 0 ? netIncome / equity : null;
+    const roa          = netIncome != null && totalAssets    ? netIncome / totalAssets    : null;
+    const currentRatio = currentAssets != null && currentLiabilities ? currentAssets / currentLiabilities : null;
+    const debtToEquity = longTermDebt != null && equity && equity > 0 ? longTermDebt / equity : null;
+    const ebitda       = operatingIncome != null && da != null ? operatingIncome + da : operatingIncome;
+    const netDebt      = cash != null ? (longTermDebt ?? 0) - cash : (longTermDebt ?? null);
+
+    if (freeCashFlow != null) saveCmp('freeCashFlow', 'Operating Cash Flow − Capital Expenditures');
+    if (grossMargin  != null) saveCmp('grossMargin',  'Gross Profit ÷ Revenue');
+    if (opMargin     != null) saveCmp('opMargin',     'Operating Income ÷ Revenue');
+    if (netMargin    != null) saveCmp('netMargin',    'Net Income ÷ Revenue');
+    if (roe          != null) saveCmp('roe',          "Net Income ÷ Stockholders' Equity");
+    if (roa          != null) saveCmp('roa',          'Net Income ÷ Total Assets');
+    if (currentRatio != null) saveCmp('currentRatio', 'Current Assets ÷ Current Liabilities');
+    if (debtToEquity != null) saveCmp('debtToEquity', 'Long-Term Debt ÷ Stockholders\' Equity');
+    if (ebitda       != null) saveCmp('ebitda',       'Operating Income + Depreciation & Amortization');
+
+    // Company website from SEC submissions (best-effort, non-blocking)
+    let website = null;
+    try {
+      const subRes = await fetch(`https://data.sec.gov/submissions/CIK${cik}.json`, { headers: EDGAR_HEADERS, signal: AbortSignal.timeout(5000) });
+      if (subRes.ok) { const sub = await subRes.json(); website = sub.website || null; }
+    } catch(e) {}
+
+    const result = {
+      _source: 'edgar', _sources, _cik: cik, ticker, website,
+      revenue, grossProfit, operatingIncome, netIncome, epsDiluted, da, ebitda,
+      operatingCF, freeCashFlow,
+      totalAssets, currentAssets, currentLiabilities, totalLiabilities,
+      equity, cash, longTermDebt, sharesOut, netDebt,
+      grossMargin, opMargin, netMargin, roe, roa, currentRatio, debtToEquity,
+    };
+
+    _fundCache.set(ticker, { data: result, ts: Date.now() });
+    if (_fundCache.size > 500) {
+      [..._fundCache.keys()].slice(0, 100).forEach(k => _fundCache.delete(k));
+    }
+
+    res.json(result);
   } catch (err) {
     console.error(`[fundamentals] ${ticker}:`, err.message);
     res.status(500).json({ error: 'Failed to fetch fundamentals', detail: err.message });
   }
+});
+
+// ── /api/search ───────────────────────────────────────────────────────────────
+// Ticker search: tries Yahoo v1 with crumb first, falls back to Finnhub.
+// Server-side is better than client-side because the crumb + cookie are already held.
+app.get('/api/search', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.json([]);
+
+  // Yahoo Finance search (server already has session crumb + cookie)
+  try {
+    const crumb = await getYahooCrumb();
+    const url = 'https://query1.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(q) +
+      '&quotesCount=8&newsCount=0&enableFuzzyQuery=true&quotesQueryId=tss_match_phrase_query' +
+      (crumb ? '&crumb=' + encodeURIComponent(crumb) : '');
+    const r = await fetch(url, {
+      headers: {
+        'User-Agent': BROWSER_UA,
+        'Accept': 'application/json',
+        ...(crumb && _yahooCookieStr ? { Cookie: _yahooCookieStr } : {}),
+      },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      const quotes = j?.finance?.result?.[0]?.quotes || j?.quotes || [];
+      const results = quotes
+        .filter(q => q.symbol && ['EQUITY', 'ETF', 'INDEX', 'MUTUALFUND'].includes(q.quoteType))
+        .slice(0, 7)
+        .map(q => ({ symbol: q.symbol, name: q.longname || q.shortname || q.symbol, type: q.quoteType, exchange: q.exchange || '' }));
+      if (results.length) return res.json(results);
+    }
+  } catch(e) {}
+
+  // Fallback: Finnhub symbol search
+  try {
+    const r = await fetch(`${FINNHUB_API}/search?q=${encodeURIComponent(q)}&token=${FINNHUB_KEY}`, {
+      headers: { 'User-Agent': BROWSER_UA },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      const results = (j.result || [])
+        .filter(r => r.symbol && (r.type === 'Common Stock' || r.type === 'ETP'))
+        .slice(0, 7)
+        .map(r => ({ symbol: r.displaySymbol || r.symbol, name: r.description || r.symbol, type: r.type === 'ETP' ? 'ETF' : 'EQUITY', exchange: '' }));
+      if (results.length) return res.json(results);
+    }
+  } catch(e) {}
+
+  res.json([]);
 });
 
 // ── /api/eq-chart/:symbol ─────────────────────────────────────────────────────
