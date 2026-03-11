@@ -20,11 +20,15 @@ const STOOQ_MAP = {
   '^GSPC':     '^spx',
   '^DJI':      '^dji',
   '^IXIC':     '^ndq',
+  '^VIX':      'vix.i',
+  '^IRX':      'irx.b',
   'GC=F':      'xauusd',
   'BZ=F':      'cl.f',
   '^TNX':      'tnx.b',
   '^TYX':      'tyx.b',
   'DX-Y.NYB':  'dx.f',
+  'BTC-USD':   'btcusd',
+  'ETH-USD':   'ethusd',
 };
 
 function toStooqSymbol(symbol) {
@@ -629,6 +633,102 @@ app.get('/api/eq-chart/:symbol', async (req, res) => {
     console.error('[eq-chart]', symbol, err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Batch prices endpoint ─────────────────────────────────────────────────────
+// Fetches all 12 overview card prices server-side in one shot.
+// Primary: Finnhub (live, works from Railway). Fallback: stooq (EOD).
+// Crypto fallback: Binance public REST (no auth, no datacenter blocks).
+// Cached 30 s — client calls this ONCE per refresh instead of 44+ Yahoo fetches.
+
+async function _fetchPriceFromFinnhub(symbol) {
+  try {
+    const r = await fetch(
+      `${FINNHUB_API}/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_KEY}`,
+      { headers: { 'User-Agent': BROWSER_UA }, signal: AbortSignal.timeout(5000) }
+    );
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d || d.c == null || d.c === 0) return null;
+    return { price: d.c, change: d.d || 0, pct: d.dp || 0 };
+  } catch(e) { return null; }
+}
+
+async function _fetchPriceFromStooq(yahooSymbol) {
+  try {
+    const result = await fetchStooqChart(yahooSymbol, '5d');
+    if (!result?.livePrice) return null;
+    const { livePrice, prevClose } = result;
+    const change = prevClose ? livePrice - prevClose : 0;
+    const pct = prevClose && prevClose !== 0 ? (change / prevClose) * 100 : 0;
+    return { price: livePrice, change, pct };
+  } catch(e) { return null; }
+}
+
+async function _fetchBinancePrice(binanceSymbol) {
+  try {
+    const r = await fetch(
+      `https://api.binance.com/api/v3/ticker/24hr?symbol=${binanceSymbol}`,
+      { headers: { 'User-Agent': BROWSER_UA }, signal: AbortSignal.timeout(5000) }
+    );
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d.lastPrice) return null;
+    return {
+      price: parseFloat(d.lastPrice),
+      change: parseFloat(d.priceChange) || 0,
+      pct: parseFloat(d.priceChangePercent) || 0,
+    };
+  } catch(e) { return null; }
+}
+
+// Sources tried in order per card key. Format: 'type:symbol'
+const _PRICE_SOURCES = {
+  spx:   ['finnhub:^GSPC',            'finnhub:SPY',             'stooq:^GSPC'],
+  ndx:   ['finnhub:^IXIC',            'finnhub:QQQ',             'stooq:^IXIC'],
+  dji:   ['finnhub:^DJI',             'finnhub:DIA',             'stooq:^DJI'],
+  vix:   ['finnhub:^VIX',             'stooq:^VIX'],
+  tny:   ['stooq:^TNX',               'finnhub:^TNX'],
+  tbill: ['stooq:^IRX',               'finnhub:^IRX'],
+  tny30: ['stooq:^TYX',               'finnhub:^TYX'],
+  dxy:   ['stooq:DX-Y.NYB',           'finnhub:DX-Y.NYB',        'finnhub:UUP'],
+  gold:  ['stooq:GC=F',               'finnhub:GC=F',            'finnhub:GLD'],
+  oil:   ['stooq:BZ=F',               'finnhub:BZ=F',            'finnhub:USO'],
+  btc:   ['finnhub:BINANCE:BTCUSDT',  'finnhub:COINBASE:BTC-USD','binance:BTCUSDT'],
+  eth:   ['finnhub:BINANCE:ETHUSD',   'finnhub:COINBASE:ETH-USD', 'binance:ETHUSDT'],
+};
+
+async function _resolvePrice(source) {
+  const colon = source.indexOf(':');
+  const type  = source.slice(0, colon);
+  const sym   = source.slice(colon + 1);
+  if (type === 'finnhub') return _fetchPriceFromFinnhub(sym);
+  if (type === 'stooq')   return _fetchPriceFromStooq(sym);
+  if (type === 'binance') return _fetchBinancePrice(sym);
+  return null;
+}
+
+const _pricesCache = { data: null, ts: 0 };
+const _PRICES_TTL  = 30_000;
+
+app.get('/api/prices', async (req, res) => {
+  if (_pricesCache.data && Date.now() - _pricesCache.ts < _PRICES_TTL) {
+    return res.json(_pricesCache.data);
+  }
+  const results = {};
+  await Promise.allSettled(
+    Object.entries(_PRICE_SOURCES).map(async ([key, sources]) => {
+      for (const source of sources) {
+        try {
+          const p = await _resolvePrice(source);
+          if (p?.price) { results[key] = p; return; }
+        } catch(e) {}
+      }
+    })
+  );
+  _pricesCache.data = results;
+  _pricesCache.ts   = Date.now();
+  res.json(results);
 });
 
 app.listen(PORT, () => console.log(`Pocket Outlook running on port ${PORT}`));

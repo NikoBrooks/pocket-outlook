@@ -121,6 +121,13 @@ export async function fetchFinnhubFundamentals(symbol) {
   } catch(e) { return null; }
 }
 
+// ── Batch prices (uses server /api/prices — 1 request replaces 44+) ──────────
+export async function fetchAllPrices() {
+  const r = await fetch('/api/prices', { cache: 'no-store' });
+  if (!r.ok) throw new Error('Prices unavailable');
+  return r.json();
+}
+
 export async function fetchCrypto(id) {
   const cgUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=' + id + '&vs_currencies=usd&include_24hr_change=true';
   for (const proxy of PROXIES) {

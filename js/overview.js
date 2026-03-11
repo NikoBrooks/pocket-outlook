@@ -1,4 +1,4 @@
-import { fetchYahoo, fetchFinnhub, fetchCrypto } from './api.js';
+import { fetchYahoo, fetchFinnhub, fetchCrypto, fetchAllPrices } from './api.js';
 import { fmt, fmtLarge, setCard, timeAgo } from './utils.js';
 import { RSS2JSON } from './config.js';
 
@@ -61,41 +61,67 @@ export async function fetchAll() {
     let fi = 0;
     btn._spinner = setInterval(() => { btn.textContent = frames[fi++ % 4]; }, 150);
   }
-  successCount = 0; totalFetches = 13; updateStatus();
+  successCount = 0; totalFetches = 12; updateStatus();
 
   function ok(id, d, suffix, dec) { setCard(id, d.price, d.change, d.pct, suffix || '', dec || 2); successCount++; updateStatus(); }
-  function fail(id) { const el = document.getElementById(id+'-price'); if(el) el.innerHTML = '<span class="error-text">unavailable</span>'; }
+  function fail(id) { const el = document.getElementById(id + '-price'); if (el) el.innerHTML = '<span class="error-text">unavailable</span>'; }
 
-  const tasks = [
-    fetchYahoo('%5EGSPC').then(d=>ok('spx',d)).catch(()=>fetchFinnhub('SPY').then(d=>ok('spx',d)).catch(()=>fail('spx'))),
-    fetchYahoo('%5EIXIC').then(d=>ok('ndx',d)).catch(()=>fetchFinnhub('QQQ').then(d=>ok('ndx',d)).catch(()=>fail('ndx'))),
-    fetchYahoo('%5EDJI').then(d=>ok('dji',d)).catch(()=>fetchFinnhub('DIA').then(d=>ok('dji',d)).catch(()=>fail('dji'))),
-    fetchYahoo('%5EVIX')
-      .catch(() => fetchFinnhub('^VIX'))
-      .then(d=>{
-        const card=document.getElementById('card-vix'),priceEl=document.getElementById('vix-price'),changeEl=document.getElementById('vix-change');
-        const up=d.change>=0; card.className='card '+(up?'down':'up');
-        priceEl.textContent=fmt(d.price); changeEl.className='change '+(up?'down':'up');
-        changeEl.textContent=(up?'+':'')+fmt(d.change)+' ('+(up?'+':'')+fmt(d.pct)+'%)';
-        setVixLabel(d.price); successCount++; updateStatus();
-      }).catch(()=>fail('vix')),
-    fetchYahoo('%5ETNX').then(d=>ok('tny',d,'%',3)).catch(()=>fetchFinnhub('IEF').then(d=>ok('tny',d)).catch(()=>fail('tny'))),
-    fetchYahoo('%5EIRX').then(d=>ok('tbill',d,'%',3)).catch(()=>fetchFinnhub('SHV').then(d=>ok('tbill',d)).catch(()=>fail('tbill'))),
-    fetchYahoo('%5ETYX').then(d=>ok('tny30',d,'%',3)).catch(()=>fetchFinnhub('TLT').then(d=>ok('tny30',d)).catch(()=>fail('tny30'))),
-    fetchYahoo('DX-Y.NYB').then(d=>ok('dxy',d)).catch(()=>fetchFinnhub('UUP').then(d=>ok('dxy',d)).catch(()=>fail('dxy'))),
-    fetchYahoo('GC%3DF').then(d=>ok('gold',d)).catch(()=>fetchFinnhub('GLD').then(d=>ok('gold',d)).catch(()=>fail('gold'))),
-    fetchYahoo('BZ%3DF').then(d=>ok('oil',d)).catch(()=>fetchFinnhub('USO').then(d=>ok('oil',d)).catch(()=>fail('oil'))),
-    fetchCrypto('bitcoin').then(d=>ok('btc',d)).catch(()=>fail('btc')),
-  ];
-  fetchCrypto('ethereum').then(d=>{ok('eth',d); successCount++; updateStatus();}).catch(()=>fail('eth'));
+  function applyVix(d) {
+    const card = document.getElementById('card-vix');
+    const priceEl = document.getElementById('vix-price');
+    const changeEl = document.getElementById('vix-change');
+    const up = d.change >= 0;
+    card.className = 'card ' + (up ? 'down' : 'up');
+    priceEl.textContent = fmt(d.price);
+    changeEl.className = 'change ' + (up ? 'down' : 'up');
+    changeEl.textContent = (up ? '+' : '') + fmt(d.change) + ' (' + (up ? '+' : '') + fmt(d.pct) + '%)';
+    setVixLabel(d.price);
+    successCount++; updateStatus();
+  }
 
+  try {
+    // ONE server request — server handles all fallbacks (Finnhub → stooq → Binance)
+    const prices = await fetchAllPrices();
+
+    if (prices.vix) applyVix(prices.vix); else fail('vix');
+
+    const cards = {
+      spx: [], ndx: [], dji: [],
+      tny: ['%', 3], tbill: ['%', 3], tny30: ['%', 3],
+      dxy: [], gold: [], oil: [],
+      btc: [], eth: [],
+    };
+    for (const [id, args] of Object.entries(cards)) {
+      if (prices[id]) ok(id, prices[id], ...args);
+      else fail(id);
+    }
+  } catch(e) {
+    // Fallback: direct Finnhub calls if /api/prices is unreachable
+    console.warn('[fetchAll] /api/prices failed, falling back:', e.message);
+    const tasks = [
+      fetchFinnhub('^GSPC').then(d=>ok('spx',d)).catch(()=>fail('spx')),
+      fetchFinnhub('^IXIC').then(d=>ok('ndx',d)).catch(()=>fail('ndx')),
+      fetchFinnhub('^DJI').then(d=>ok('dji',d)).catch(()=>fail('dji')),
+      fetchFinnhub('^VIX').then(d=>applyVix(d)).catch(()=>fail('vix')),
+      fetchFinnhub('IEF').then(d=>ok('tny',d,'%',3)).catch(()=>fail('tny')),
+      fetchFinnhub('SHV').then(d=>ok('tbill',d,'%',3)).catch(()=>fail('tbill')),
+      fetchFinnhub('TLT').then(d=>ok('tny30',d,'%',3)).catch(()=>fail('tny30')),
+      fetchFinnhub('UUP').then(d=>ok('dxy',d)).catch(()=>fail('dxy')),
+      fetchFinnhub('GLD').then(d=>ok('gold',d)).catch(()=>fail('gold')),
+      fetchFinnhub('USO').then(d=>ok('oil',d)).catch(()=>fail('oil')),
+      fetchCrypto('bitcoin').then(d=>ok('btc',d)).catch(()=>fail('btc')),
+      fetchCrypto('ethereum').then(d=>ok('eth',d)).catch(()=>fail('eth')),
+    ];
+    await Promise.allSettled(tasks);
+  }
+
+  // Static data
   document.getElementById('card-cpi').className = 'card neutral';
   document.getElementById('cpi-price').textContent = '2.9%';
   document.getElementById('cpi-change').className = 'change neutral';
   document.getElementById('cpi-change').textContent = 'Monthly BLS Release';
   document.getElementById('cpi-date').textContent = 'Jan 2025 — Next release Mar 12, 2025';
 
-  await Promise.allSettled(tasks);
   const now = new Date();
   const el = document.getElementById('last-updated');
   if (el) el.textContent = 'Updated ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
