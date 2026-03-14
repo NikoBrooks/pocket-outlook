@@ -795,11 +795,17 @@ app.get('/api/polygon/:ticker', async (req, res) => {
 
     if (!t && !d) return res.status(404).json({ error: 'No Polygon data for ' + ticker });
 
+    // day.c is null when markets are closed (weekends/holidays) — fall back to prevDay
+    const price  = t?.day?.c     || t?.prevDay?.c  || t?.lastTrade?.p  || null;
+    const volume = t?.day?.v     || t?.prevDay?.v  || null;
+    const change = t?.todaysChange    ?? null;
+    const changePct = t?.todaysChangePerc != null ? t.todaysChangePerc / 100 : null;
+
     const data = {
-      regularMarketPrice:         t?.day?.c            ?? t?.lastTrade?.p   ?? null,
-      regularMarketChange:        t?.todaysChange                            ?? null,
-      regularMarketChangePercent: t?.todaysChangePerc  != null ? t.todaysChangePerc / 100 : null,
-      regularMarketVolume:        t?.day?.v                                  ?? null,
+      regularMarketPrice:         price,
+      regularMarketChange:        change,
+      regularMarketChangePercent: changePct,
+      regularMarketVolume:        volume,
       marketCap:                  d?.market_cap                              ?? null,
       sharesOutstanding:          d?.weighted_shares_outstanding ?? d?.share_class_shares_outstanding ?? null,
       fullExchangeName:           d?.primary_exchange ? (MIC_EXCHANGE[d.primary_exchange] || d.primary_exchange) : null,

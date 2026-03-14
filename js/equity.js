@@ -857,10 +857,10 @@ export async function loadEquityStock(symbol) {
       renderDataPanel(_v7, _fund, _chartMeta, _fh);
     }).catch(() => {});
 
-  // Launch all three in parallel immediately
+  // Launch EDGAR + Finnhub in parallel (Yahoo v10/v11 is permanently blocked)
   const edgarPromise = fetchEdgarFundamentals(symbol).catch(() => null);
   const fhPromise    = fetchFinnhubFundamentals(symbol).catch(() => null);
-  const yahooPromise = fetchFundamentals(symbol).catch(() => null);
+  const yahooPromise = Promise.resolve(null);
 
   // Render immediately when Finnhub arrives (~1-2s, direct API — no CORS proxy)
   fhPromise.then(fhFund => {
@@ -877,8 +877,7 @@ export async function loadEquityStock(symbol) {
     console.group('[Pocket Outlook] Fundamentals: ' + symbol);
     console.log('EDGAR:', edgarFund ? { revenue: edgarFund.revenue, ebitda: edgarFund.ebitda, fcf: edgarFund.freeCashFlow, netDebt: edgarFund.netDebt, cash: edgarFund.cash, ltDebt: edgarFund.longTermDebt } : 'FAILED/NULL');
     console.log('Finnhub:', fhFund ? { revenue: fhFund.financialData?.totalRevenue, ebitda: fhFund.financialData?.ebitda, fcf: fhFund.financialData?.freeCashflow, evEbitda: fhFund.defaultKeyStatistics?.enterpriseToEbitda } : 'FAILED/NULL');
-    console.log('Yahoo v10:', yahooFund ? { revenue: yahooFund.financialData?.totalRevenue, ebitda: yahooFund.financialData?.ebitda } : 'FAILED/NULL');
-    console.log('Yahoo v7 (at resolve time):', _v7 ? { enterpriseValue: _v7.enterpriseValue, marketCap: _v7.marketCap } : 'FAILED/NULL');
+    console.log('Polygon (at resolve time):', _v7 ? { price: _v7.regularMarketPrice, marketCap: _v7.marketCap, exchange: _v7.fullExchangeName } : 'FAILED/NULL');
     console.groupEnd();
     _fh = fhFund;
     const yFin   = yahooFund?.financialData        || {};
