@@ -216,7 +216,6 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
   const high52  = v7?.fiftyTwoWeekHigh ?? getRaw(sum.fiftyTwoWeekHigh) ?? fh?.summaryDetail?.fiftyTwoWeekHigh ?? chartMeta?.fiftyTwoWeekHigh;
   const low52   = v7?.fiftyTwoWeekLow  ?? getRaw(sum.fiftyTwoWeekLow)  ?? fh?.summaryDetail?.fiftyTwoWeekLow  ?? chartMeta?.fiftyTwoWeekLow;
   const beta    = v7?.beta ?? getRaw(sum.beta) ?? fh?.summaryDetail?.beta;
-  const fwdPE   = v7?.forwardPE ?? getRaw(prc.forwardPE) ?? getRaw(sum.forwardPE) ?? (v7?.epsForward != null && price != null ? price / v7.epsForward : null);
   const exchange = v7?.fullExchangeName || v7?.exchange || chartMeta?.fullExchangeName || '—';
   const divYield = v7?.trailingAnnualDividendYield ?? v7?.dividendYield ?? getRaw(fh?.financialData?.dividendYield) ?? null;
 
@@ -267,7 +266,6 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
     _panelSources['eq-m-high52']   = YS;
     _panelSources['eq-m-low52']    = YS;
     _panelSources['eq-m-pe']       = CS('Price ÷ EPS Diluted (EDGAR, TTM)');
-    _panelSources['eq-m-fwdpe']    = { type: 'yahoo', desc: 'Forward P/E from Yahoo Finance — analyst consensus forward EPS' };
     _panelSources['eq-m-ps']       = CS('Market Cap ÷ Revenue TTM (' + (revenue !== fund.revenue ? 'Finnhub' : 'EDGAR') + ')');
     _panelSources['eq-m-pb']       = CS('Market Cap ÷ Stockholders\' Equity (EDGAR)');
     _panelSources['eq-m-pfcf']     = CS('Market Cap ÷ Free Cash Flow TTM (' + (fcf !== fund.freeCashFlow ? 'Finnhub' : 'EDGAR') + ')');
@@ -320,7 +318,6 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
       ]) +
       sect('Valuation', [
         sr('pe',       'P/E (TTM)',     pe       != null ? pe.toFixed(1)       + 'x' : '—', pe       != null && pe       > 0 && pe       < 25 ? 'good' : pe       != null && pe       < 40 ? 'warn' : ''),
-        sr('fwdpe',    'Fwd P/E',       fwdPE    != null ? fwdPE.toFixed(1)    + 'x' : '—', fwdPE    != null && fwdPE    > 0 && fwdPE    < 20 ? 'good' : fwdPE    != null && fwdPE    < 35 ? 'warn' : ''),
         sr('ps',       'P/S',           ps       != null ? ps.toFixed(2)        + 'x' : '—', ps       != null && ps       > 0 && ps       < 5  ? 'good' : ps       != null && ps       < 10 ? 'warn' : ''),
         sr('pb',       'P/B',           pb       != null ? pb.toFixed(2)        + 'x' : '—', pb       != null && pb       > 0 && pb       < 3  ? 'good' : pb       != null && pb       < 6  ? 'warn' : ''),
         sr('pfcf',     'P/FCF',         pfcf     != null ? pfcf.toFixed(1)     + 'x' : '—', pfcf     != null && pfcf     > 0 && pfcf     < 25 ? 'good' : pfcf     != null && pfcf     < 50 ? 'warn' : ''),
@@ -393,7 +390,6 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
     ]) +
     sect('Valuation', [
       row('P/E (TTM)',  trPE     != null ? trPE.toFixed(1)     + 'x' : '—', trPE     != null && trPE     > 0 && trPE     < 25 ? 'good' : trPE     != null && trPE     < 40 ? 'warn' : ''),
-      row('Fwd P/E',   fwdPE    != null ? fwdPE.toFixed(1)    + 'x' : '—', fwdPE    != null && fwdPE    > 0 && fwdPE    < 20 ? 'good' : fwdPE    != null && fwdPE    < 35 ? 'warn' : ''),
       row('P/B',       pb       != null ? pb.toFixed(2)        + 'x' : '—', pb       != null && pb       > 0 && pb       < 3  ? 'good' : pb       != null && pb       < 6  ? 'warn' : ''),
       row('P/S',       ps       != null ? ps.toFixed(2)        + 'x' : '—', ps       != null && ps       > 0 && ps       < 5  ? 'good' : ps       != null && ps       < 10 ? 'warn' : ''),
       row('P/FCF',     pfcf     != null ? pfcf.toFixed(1)     + 'x' : '—', pfcf     != null && pfcf     > 0 && pfcf     < 25 ? 'good' : pfcf     != null && pfcf     < 50 ? 'warn' : ''),
@@ -879,7 +875,7 @@ export async function loadEquityStock(symbol) {
     console.log('EDGAR:', edgarFund ? { revenue: edgarFund.revenue, ebitda: edgarFund.ebitda, fcf: edgarFund.freeCashFlow, netDebt: edgarFund.netDebt, cash: edgarFund.cash, ltDebt: edgarFund.longTermDebt } : 'FAILED/NULL');
     console.log('Finnhub:', fhFund ? { revenue: fhFund.financialData?.totalRevenue, ebitda: fhFund.financialData?.ebitda, fcf: fhFund.financialData?.freeCashflow, evEbitda: fhFund.defaultKeyStatistics?.enterpriseToEbitda } : 'FAILED/NULL');
     console.log('Yahoo v10:', yahooFund ? { revenue: yahooFund.financialData?.totalRevenue, ebitda: yahooFund.financialData?.ebitda } : 'FAILED/NULL');
-    console.log('Yahoo v7 (at resolve time):', _v7 ? { enterpriseValue: _v7.enterpriseValue, forwardPE: _v7.forwardPE, epsForward: _v7.epsForward, marketCap: _v7.marketCap } : 'FAILED/NULL');
+    console.log('Yahoo v7 (at resolve time):', _v7 ? { enterpriseValue: _v7.enterpriseValue, marketCap: _v7.marketCap } : 'FAILED/NULL');
     console.groupEnd();
     _fh = fhFund;
     const yFin   = yahooFund?.financialData        || {};

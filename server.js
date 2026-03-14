@@ -37,6 +37,8 @@ function toStooqSymbol(symbol) {
   if (/^[A-Z]{1,6}$/.test(symbol)) return symbol.toLowerCase() + '.us';
   // Share-class tickers with dot (e.g. BF.B → bf_b.us, BRK.A → brk_a.us)
   if (/^[A-Z]{1,5}\.[A-Z]$/.test(symbol)) return symbol.replace('.', '_').toLowerCase() + '.us';
+  // Share-class tickers with hyphen (e.g. BF-B → bf-b.us)
+  if (/^[A-Z]{1,5}-[A-Z]$/.test(symbol)) return symbol.toLowerCase() + '.us';
   return null;
 }
 
@@ -287,8 +289,14 @@ async function getCik(ticker) {
   }
   const upper = ticker.toUpperCase();
   if (_cikMap[upper]) return _cikMap[upper];
-  // Fallbacks for dual-class shares (e.g. BRK.A → BRK, GOOGL → GOOG)
-  for (const alt of [upper.replace(/\.[A-Z]$/, ''), upper.slice(0, -1)]) {
+  // Fallbacks for dual-class shares and alternate ticker formats
+  const alts = [
+    upper.replace(/\.[A-Z]$/, ''),           // BRK.A → BRK
+    upper.replace(/-([A-Z])$/, '.$1'),        // BF-B  → BF.B  (SEC hyphen → market dot)
+    upper.replace(/-[A-Z]$/, ''),             // BF-B  → BF
+    upper.slice(0, -1),                       // RUSHA → RUSH
+  ];
+  for (const alt of alts) {
     if (alt && alt !== upper && _cikMap[alt]) return _cikMap[alt];
   }
   return null;
