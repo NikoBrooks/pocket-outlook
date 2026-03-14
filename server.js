@@ -20,7 +20,7 @@ const STOOQ_MAP = {
   '^GSPC':     '^spx',
   '^DJI':      '^dji',
   '^IXIC':     '^ndq',
-  '^VIX':      'vix.i',
+  '^VIX':      '^vix',
   '^IRX':      'irx.b',
   'GC=F':      'xauusd',
   'BZ=F':      'cl.f',
@@ -33,7 +33,10 @@ const STOOQ_MAP = {
 
 function toStooqSymbol(symbol) {
   if (STOOQ_MAP[symbol]) return STOOQ_MAP[symbol];
+  // Plain US stock ticker (e.g. AAPL → aapl.us)
   if (/^[A-Z]{1,6}$/.test(symbol)) return symbol.toLowerCase() + '.us';
+  // Share-class tickers with dot (e.g. BF.B → bf_b.us, BRK.A → brk_a.us)
+  if (/^[A-Z]{1,5}\.[A-Z]$/.test(symbol)) return symbol.replace('.', '_').toLowerCase() + '.us';
   return null;
 }
 
@@ -45,7 +48,12 @@ async function fetchStooqChart(symbol, range) {
 
   const isWeekly = range === '2y' || range === '5y';
   const endDate  = new Date();
-  const startDate = new Date(Date.now() - (STOOQ_RANGE_DAYS[range] || 370) * 86400000);
+  let startDate;
+  if (range === 'ytd') {
+    startDate = new Date(endDate.getFullYear(), 0, 1); // Jan 1 of current year
+  } else {
+    startDate = new Date(Date.now() - (STOOQ_RANGE_DAYS[range] || 370) * 86400000);
+  }
   const d1 = startDate.toISOString().slice(0, 10).replace(/-/g, '');
   const d2 = endDate.toISOString().slice(0, 10).replace(/-/g, '');
   const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSym)}&i=${isWeekly ? 'w' : 'd'}&d1=${d1}&d2=${d2}`;

@@ -459,16 +459,17 @@
 .eq-panel-row:hover { background: rgba(255,255,255,0.05); }
 
 /* Source-clickable rows */
-.eq-panel-src { cursor: pointer; }
+.eq-panel-src { cursor: pointer; position: relative; padding-right: 18px; }
 .eq-panel-src::after {
   content: '·';
   font-size: 18px;
   line-height: 0;
   color: var(--border-bright);
-  flex-shrink: 0;
-  margin-left: -4px;
   opacity: 0.5;
-  vertical-align: middle;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 .eq-panel-src:hover::after { opacity: 1; color: var(--green); }
 
