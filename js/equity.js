@@ -1,4 +1,4 @@
-import { fetchYahoo, fetchFinnhub, fetchPolygonQuote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData, searchTickers, fetchFundamentals } from './api.js';
+import { fetchFinnhub, fetchPolygonQuote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData, searchTickers } from './api.js';
 import { fmt, fmtFinNum, fmtPct, getRaw } from './utils.js';
 
 // ── Module State ──
@@ -86,11 +86,8 @@ export async function renderWatchlist() {
     bodyDiv.className = 'eq-group-body' + (g.open ? '' : ' collapsed');
     if (g.open && g.tickers.length > 0) {
       const rows = await Promise.all(g.tickers.map(async sym => {
-        try { const d = await fetchYahoo(sym); return { sym, price: d.price, change: d.change, pct: d.pct, ok: true }; }
-        catch(e) {
-          try { const d = await fetchFinnhub(sym); return { sym, price: d.price, change: d.change, pct: d.pct, ok: true }; }
-          catch(e2) { return { sym, ok: false }; }
-        }
+        try { const d = await fetchFinnhub(sym); return { sym, price: d.price, change: d.change, pct: d.pct, ok: true }; }
+        catch(e) { return { sym, ok: false }; }
       }));
       rows.forEach(r => {
         const item = document.createElement('div');
