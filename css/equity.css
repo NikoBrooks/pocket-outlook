@@ -521,6 +521,7 @@
   align-self: flex-start;
 }
 .eq-src-badge.yahoo    { background: #1a3a5c; color: #5ba4e8; }
+.eq-src-badge.polygon  { background: #1a2e1a; color: #66cc66; }
 .eq-src-badge.edgar    { background: #1a3328; color: var(--green); }
 .eq-src-badge.computed { background: #2d2040; color: #a87fe0; }
 .eq-src-badge.finnhub  { background: #1a2a3a; color: #60b8f0; }

@@ -15,6 +15,20 @@ const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 const FINNHUB_API = 'https://finnhub.io/api/v1';
 const FINNHUB_KEY = process.env.FINNHUB_KEY || 'd6jikipr01qkvh5q2pugd6jikipr01qkvh5q2pv0';
 
+const POLYGON_API = 'https://api.polygon.io';
+const POLYGON_KEY = process.env.POLYGON_KEY || '6HB5kdgm_LLMDbQqOtAssinlq0jDnOuo';
+
+// MIC exchange code → human-readable name
+const MIC_EXCHANGE = {
+  XNAS: 'NASDAQ',
+  XNYS: 'NYSE',
+  ARCX: 'NYSE Arca',
+  BATS: 'CBOE/BATS',
+  XASE: 'NYSE American',
+  XCBO: 'CBOE',
+  IEXG: 'IEX',
+};
+
 // Yahoo symbol → stooq symbol mapping
 const STOOQ_MAP = {
   '^GSPC':     '^spx',
@@ -745,6 +759,62 @@ app.get('/api/prices', async (req, res) => {
   _pricesCache.data = results;
   _pricesCache.ts   = Date.now();
   res.json(results);
+});
+
+// ── /api/polygon/:ticker ──────────────────────────────────────────────────────
+// Fetches price snapshot + reference data from Polygon.io.
+// Returns a v7-shaped object compatible with equity.js renderDataPanel.
+// Free tier: 15-min delayed, 5 req/min — cached 1 min server-side.
+
+const _polygonCache = new Map();
+const _POLYGON_TTL  = 60_000; // 1 minute
+
+app.get('/api/polygon/:ticker', async (req, res) => {
+  const ticker = req.params.ticker.toUpperCase();
+
+  const hit = _polygonCache.get(ticker);
+  if (hit && Date.now() - hit.ts < _POLYGON_TTL) return res.json(hit.data);
+
+  try {
+    const [snapRes, refRes] = await Promise.all([
+      fetch(`${POLYGON_API}/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(ticker)}?apiKey=${POLYGON_KEY}`, {
+        headers: { 'User-Agent': BROWSER_UA },
+        signal: AbortSignal.timeout(6000),
+      }),
+      fetch(`${POLYGON_API}/v3/reference/tickers/${encodeURIComponent(ticker)}?apiKey=${POLYGON_KEY}`, {
+        headers: { 'User-Agent': BROWSER_UA },
+        signal: AbortSignal.timeout(6000),
+      }),
+    ]);
+
+    const snap = snapRes.ok ? await snapRes.json() : null;
+    const ref  = refRes.ok  ? await refRes.json()  : null;
+
+    const t = snap?.ticker;
+    const d = ref?.results;
+
+    if (!t && !d) return res.status(404).json({ error: 'No Polygon data for ' + ticker });
+
+    const data = {
+      regularMarketPrice:         t?.day?.c            ?? t?.lastTrade?.p   ?? null,
+      regularMarketChange:        t?.todaysChange                            ?? null,
+      regularMarketChangePercent: t?.todaysChangePerc  != null ? t.todaysChangePerc / 100 : null,
+      regularMarketVolume:        t?.day?.v                                  ?? null,
+      marketCap:                  d?.market_cap                              ?? null,
+      sharesOutstanding:          d?.weighted_shares_outstanding ?? d?.share_class_shares_outstanding ?? null,
+      fullExchangeName:           d?.primary_exchange ? (MIC_EXCHANGE[d.primary_exchange] || d.primary_exchange) : null,
+      longName:                   d?.name                                    ?? null,
+    };
+
+    _polygonCache.set(ticker, { data, ts: Date.now() });
+    if (_polygonCache.size > 200) {
+      [..._polygonCache.keys()].slice(0, 50).forEach(k => _polygonCache.delete(k));
+    }
+    res.json(data);
+  } catch (err) {
+    console.error('[polygon]', ticker, err.message);
+    res.status(502).json({ error: 'Polygon fetch failed', detail: err.message });
+  }
 });
 
 app.listen(PORT, () => console.log(`Pocket Outlook running on port ${PORT}`));

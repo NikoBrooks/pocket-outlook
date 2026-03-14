@@ -249,6 +249,16 @@ export async function fetchYahooV7Quote(symbol) {
   return null;
 }
 
+export async function fetchPolygonQuote(symbol) {
+  try {
+    const r = await fetchWithTimeout('/api/polygon/' + encodeURIComponent(symbol), {}, 8000);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (d.regularMarketPrice == null) return null;
+    return d;
+  } catch(e) { return null; }
+}
+
 export async function searchTickers(query) {
   const q = query.trim();
   if (!q) return [];

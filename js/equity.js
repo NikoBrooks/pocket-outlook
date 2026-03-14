@@ -1,4 +1,4 @@
-import { fetchYahoo, fetchFinnhub, fetchYahooV7Quote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData, searchTickers, fetchFundamentals } from './api.js';
+import { fetchYahoo, fetchFinnhub, fetchPolygonQuote, fetchFinnhubFundamentals, fetchEdgarFundamentals, fetchEqChartData, searchTickers, fetchFundamentals } from './api.js';
 import { fmt, fmtFinNum, fmtPct, getRaw } from './utils.js';
 
 // ── Module State ──
@@ -137,8 +137,11 @@ function showSourcePop(anchor, src) {
   pop.className = 'eq-src-pop';
 
   let html = '';
-  if (src.type === 'yahoo') {
-    html = '<div class="eq-src-badge yahoo">Yahoo Finance</div>' +
+  if (src.type === 'polygon') {
+    html = '<div class="eq-src-badge polygon">Polygon.io</div>' +
+           '<div class="eq-src-desc">' + (src.desc || 'Real-time market data (15-min delay on free tier)') + '</div>';
+  } else if (src.type === 'yahoo') {
+    html = '<div class="eq-src-badge finnhub">Yahoo Finance</div>' +
            '<div class="eq-src-desc">' + (src.desc || 'Real-time market data') + '</div>';
   } else if (src.type === 'finnhub') {
     html = '<div class="eq-src-badge finnhub">Finnhub</div>' +
@@ -255,7 +258,7 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
 
     // Build source map for this render
     _panelSources = {};
-    const YS = { type: 'yahoo', desc: 'Yahoo Finance — real-time market data' };
+    const YS = { type: 'polygon', desc: 'Polygon.io — real-time market data' };
     const CS = f => ({ type: 'computed', formula: f });
     _panelSources['eq-m-price']      = YS;
     _panelSources['eq-metric-change'] = YS;
@@ -277,7 +280,7 @@ function renderDataPanel(v7, fund, chartMeta, fh) {
       : fund._sources?.ev
         ? { type: fund._sources.ev.type, desc: fund._sources.ev.desc }
         : v7?.enterpriseValue != null
-          ? { type: 'yahoo', desc: 'Enterprise Value from Yahoo Finance (v7 quote)' }
+          ? { type: 'polygon', desc: 'Enterprise Value from Polygon.io' }
           : fhDerivedEV != null
             ? { type: 'finnhub', desc: 'EV = EV/EBITDA ratio × EBITDA (Finnhub back-calculation)' }
             : YS;
@@ -847,7 +850,7 @@ export async function loadEquityStock(symbol) {
       renderDataPanel(_v7, _fund, _chartMeta, _fh);
     }).catch(() => {});
 
-  fetchYahooV7Quote(symbol)
+  fetchPolygonQuote(symbol)
     .then(result => {
       _v7 = result;
       buildHeader(_v7, _chartMeta, _fund, _fh);
@@ -889,7 +892,7 @@ export async function loadEquityStock(symbol) {
         const val = fhVal != null ? fhVal : (yVal != null ? yVal : null);
         if (val == null) return;
         edgarFund[key] = val;
-        edgarFund._sources[key] = fhVal != null ? { type: 'finnhub', desc: fhDesc } : { type: 'yahoo', desc: yDesc };
+        edgarFund._sources[key] = fhVal != null ? { type: 'finnhub', desc: fhDesc } : { type: 'computed', formula: yDesc };
       }
       sup('revenue',      fhFund?.financialData?.totalRevenue, getRaw(yFin.totalRevenue), 'Finnhub — TTM Revenue', 'Yahoo Finance — TTM Revenue');
       sup('freeCashFlow', fhFund?.financialData?.freeCashflow,  getRaw(yFin.freeCashflow), 'Finnhub — FCF TTM',     'Yahoo Finance — FCF TTM');
@@ -898,7 +901,7 @@ export async function loadEquityStock(symbol) {
       const yEV = getRaw(yStats.enterpriseValue);
       if (!edgarFund.ev && yEV != null) {
         edgarFund.ev = yEV;
-        edgarFund._sources.ev = { type: 'yahoo', desc: 'Enterprise Value from Yahoo Finance' };
+        edgarFund._sources.ev = { type: 'computed', formula: 'Enterprise Value from Yahoo Finance (v10 quoteSummary)' };
       }
       if (!edgarFund.ev) {
         const fhRatio = fhFund?.defaultKeyStatistics?.enterpriseToEbitda;
