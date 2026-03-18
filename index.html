@@ -2,442 +2,1104 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Pocket Outlook</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/charts.css">
-<link rel="stylesheet" href="css/components.css">
-<link rel="stylesheet" href="css/equity.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POCKET OUTLOOK 2.0 — SEC RESEARCH TERMINAL</title>
+<style>
+:root {
+  --black:      #000000;
+  --bg:         #080808;
+  --surface:    #0f0f0f;
+  --surface2:   #141414;
+  --border:     #1a1a1a;
+  --border2:    #242424;
+  --green:      #00ff41;
+  --green-dim:  #00c230;
+  --green-dark: #001f0a;
+  --amber:      #ffb700;
+  --amber-dim:  #cc8f00;
+  --amber-dark: #1e1500;
+  --red:        #ff3b30;
+  --red-dim:    #cc2218;
+  --cyan:       #00d4ff;
+  --text:       #e0e0e0;
+  --muted:      #585858;
+  --muted2:     #383838;
+  --mono: 'Courier New', 'Lucida Console', 'Monaco', monospace;
+  --fs:    12px;
+  --fs-sm: 11px;
+  --fs-xs: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; background: var(--black);
+  color: var(--text); font-family: var(--mono);
+  font-size: var(--fs); overflow: hidden;
+}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); }
+::-webkit-scrollbar-thumb:hover { background: var(--muted2); }
+
+/* ── LAYOUT ─────────────────────── */
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+/* ── HEADER ─────────────────────── */
+#header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 12px; height: 38px;
+  background: var(--black); border-bottom: 1px solid var(--border2);
+  flex-shrink: 0; user-select: none;
+}
+.logo {
+  font-size: 13px; font-weight: bold; color: var(--amber);
+  letter-spacing: 2px; white-space: nowrap;
+  padding-right: 14px; border-right: 1px solid var(--border2);
+}
+.logo .lo-green { color: var(--green); }
+.logo .lo-ver { color: var(--muted); font-size: 10px; }
+#gsearch {
+  flex: 1; max-width: 300px;
+  background: var(--surface); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--mono); font-size: var(--fs-sm);
+  padding: 3px 8px; outline: none; text-transform: uppercase;
+}
+#gsearch::placeholder { color: var(--muted); }
+#gsearch:focus { border-color: var(--amber); }
+#gbtn {
+  background: var(--amber); color: var(--black);
+  border: none; font-family: var(--mono); font-size: var(--fs-xs);
+  font-weight: bold; padding: 3px 10px; cursor: pointer; letter-spacing: 1px;
+}
+#gbtn:hover { background: var(--amber-dim); color: var(--text); }
+.nav { display: flex; gap: 1px; margin-left: auto; }
+.nav-btn {
+  background: transparent; border: 1px solid var(--border2);
+  color: var(--muted); font-family: var(--mono); font-size: var(--fs-xs);
+  font-weight: bold; padding: 3px 13px; cursor: pointer; letter-spacing: 1px;
+}
+.nav-btn:hover { border-color: var(--amber-dim); color: var(--amber-dim); }
+.nav-btn.active { background: var(--amber); color: var(--black); border-color: var(--amber); }
+
+/* ── PANELS ─────────────────────── */
+.panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.panel.active { display: flex; }
+.panel-bar {
+  display: flex; align-items: center; gap: 10px; padding: 5px 12px;
+  background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0;
+}
+.panel-title { font-size: var(--fs-xs); font-weight: bold; color: var(--green); letter-spacing: 2px; }
+.panel-bar-meta { font-size: var(--fs-xs); color: var(--muted); margin-left: auto; }
+
+/* ── SECTION HEADER ─────────────── */
+.sh {
+  font-size: var(--fs-xs); color: var(--amber); letter-spacing: 2px;
+  padding: 6px 0 4px; margin-bottom: 6px;
+  border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px;
+}
+.sh::after { content: ''; flex: 1; height: 1px; background: var(--border); margin-left: 4px; }
+
+/* ── INPUTS ─────────────────────── */
+input[type=text], input[type=number], select, textarea {
+  background: var(--surface); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--mono); font-size: var(--fs-sm);
+  padding: 3px 6px; outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--amber); }
+select option { background: var(--surface); }
+textarea { resize: vertical; min-height: 56px; }
+
+/* ── BUTTONS ────────────────────── */
+.btn {
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--mono); font-size: var(--fs-sm);
+  padding: 3px 10px; cursor: pointer;
+}
+.btn:hover { border-color: var(--green-dim); color: var(--green); }
+.btn-g  { background: var(--green-dark); border-color: var(--green-dim); color: var(--green); }
+.btn-g:hover  { background: var(--green-dim); color: var(--black); }
+.btn-a  { background: var(--amber-dark); border-color: var(--amber-dim); color: var(--amber); }
+.btn-a:hover  { background: var(--amber); color: var(--black); }
+.btn-r  { border-color: var(--red-dim); color: var(--red-dim); background: transparent; }
+.btn-r:hover  { background: var(--red-dim); color: var(--text); }
+
+/* ── TABLES ─────────────────────── */
+.dt { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.dt th {
+  text-align: left; color: var(--amber); font-size: var(--fs-xs);
+  letter-spacing: 1px; padding: 4px 8px; border-bottom: 1px solid var(--border2);
+  white-space: nowrap; background: var(--surface); position: sticky; top: 0; z-index: 1;
+}
+.dt td {
+  padding: 4px 8px; border-bottom: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dt tr:hover td { background: var(--surface); }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.hi  { color: var(--amber); }
+.cy  { color: var(--cyan); }
+.mu  { color: var(--muted); }
+.td-link { color: var(--cyan); cursor: pointer; text-decoration: underline; }
+.td-link:hover { color: var(--green); }
+
+/* ── STATUS BAR ─────────────────── */
+#sbar {
+  height: 20px; background: var(--surface); border-top: 1px solid var(--border2);
+  display: flex; align-items: center; padding: 0 10px; gap: 16px; flex-shrink: 0;
+  font-size: var(--fs-xs);
+}
+#sbar-msg { color: var(--green-dim); flex: 1; }
+#sbar-time { color: var(--muted); }
+
+/* ── PLACEHOLDERS ───────────────── */
+.empty   { color: var(--muted); font-size: var(--fs-sm); padding: 32px; text-align: center; }
+.loading { color: var(--amber-dim); font-size: var(--fs-sm); padding: 32px; text-align: center; letter-spacing: 1px; }
+.errmsg  { color: var(--red-dim); font-size: var(--fs-sm); padding: 32px; text-align: center; }
+
+/* ════════════════════════════════════
+   FILINGS PANEL
+════════════════════════════════════ */
+.f-layout { display: flex; flex: 1; overflow: hidden; }
+.f-sidebar {
+  width: 250px; flex-shrink: 0; border-right: 1px solid var(--border2);
+  padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto;
+}
+.f-main { flex: 1; overflow-y: auto; }
+.f-row { display: flex; flex-direction: column; gap: 3px; }
+.f-label { font-size: var(--fs-xs); color: var(--muted); letter-spacing: 1px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.fg-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); font-family: var(--mono); font-size: var(--fs-xs);
+  padding: 3px 4px; cursor: pointer; text-align: center;
+}
+.fg-btn:hover { border-color: var(--amber-dim); color: var(--amber-dim); }
+.fg-btn.on { background: var(--amber-dark); border-color: var(--amber); color: var(--amber); }
+
+/* ════════════════════════════════════
+   VALUATION PANEL
+════════════════════════════════════ */
+.v-layout { display: flex; flex: 1; overflow: hidden; }
+.v-col { flex: 1; overflow-y: auto; padding: 10px 12px; border-right: 1px solid var(--border); }
+.v-col:last-child { border-right: none; }
+.ig { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px; }
+.ir { display: flex; flex-direction: column; gap: 2px; }
+.ir label { font-size: var(--fs-xs); color: var(--muted); }
+.ir input { width: 100%; }
+.iv-box {
+  background: var(--surface); border: 1px solid var(--border2); padding: 14px;
+  text-align: center; margin-bottom: 10px;
+}
+.iv-lbl { font-size: var(--fs-xs); color: var(--muted); letter-spacing: 2px; }
+.iv-num { font-size: 30px; font-weight: bold; color: var(--green); margin: 6px 0; }
+.iv-sub { font-size: var(--fs-xs); color: var(--muted); margin-top: 2px; }
+.sense-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+.sense-tbl th {
+  background: var(--surface); color: var(--amber);
+  padding: 3px 7px; text-align: center; border: 1px solid var(--border);
+}
+.sense-tbl td { padding: 3px 7px; text-align: center; border: 1px solid var(--border); }
+.sense-tbl td.base { color: var(--green); font-weight: bold; background: var(--green-dark); }
+.sense-tbl .rl { color: var(--amber); text-align: left; background: var(--surface); }
+.ratio-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.rc { background: var(--surface); border: 1px solid var(--border); padding: 8px; }
+.rc-name { font-size: var(--fs-xs); color: var(--muted); }
+.rc-val { font-size: 15px; color: var(--amber); font-weight: bold; margin-top: 3px; }
+
+/* ════════════════════════════════════
+   INSIDER PANEL
+════════════════════════════════════ */
+.i-layout { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+.i-ctrl {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border2); flex-shrink: 0;
+}
+.i-main { flex: 1; overflow-y: auto; }
+
+/* ════════════════════════════════════
+   WATCHLIST PANEL
+════════════════════════════════════ */
+.wl-layout { display: flex; flex: 1; overflow: hidden; }
+.wl-sidebar {
+  width: 270px; flex-shrink: 0; border-right: 1px solid var(--border2);
+  padding: 10px; display: flex; flex-direction: column; gap: 7px; overflow-y: auto;
+}
+.wl-main { flex: 1; overflow-y: auto; }
+.wl-row { display: flex; flex-direction: column; gap: 2px; }
+.wl-label { font-size: var(--fs-xs); color: var(--muted); letter-spacing: 1px; }
+.wl-detail-panel {
+  background: var(--surface); border: 1px solid var(--border2);
+  padding: 12px; margin: 12px;
+}
+.wl-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; font-size: var(--fs-sm); }
+.wl-detail-grid .dk { color: var(--muted); font-size: var(--fs-xs); }
+.wl-detail-grid .dv { color: var(--text); margin-top: 2px; }
+.wl-notes-area { color: var(--text); white-space: pre-wrap; font-size: var(--fs-sm); }
+</style>
 </head>
 <body>
+<div id="app">
 
-<header>
-  <div class="logo">Pocket Outlook</div>
-  <nav class="nav-tabs">
-    <button class="nav-tab active" onclick="switchTab('overview')">Overview</button>
-    <button class="nav-tab" onclick="switchTab('equity')">Equity Securities</button>
-    <button class="nav-tab" onclick="switchTab('debt')">Debt Securities</button>
-  </nav>
-  <div class="header-right">
-    <span class="clock" id="clock">—</span>
-    <span class="last-updated" id="last-updated">Fetching data...</span>
-    <button class="refresh-btn" id="refresh-btn" onclick="fetchAll()">↻ Refresh</button>
-  </div>
-</header>
-
-<main>
-
-  <!-- TAB: OVERVIEW -->
-  <div id="tab-overview" class="tab-panel">
-
-  <!-- GREETING -->
-  <div class="greeting-block">
-    <div class="greeting-text" id="greeting-text"></div>
-    <div class="greeting-sub" id="greeting-sub"></div>
+  <!-- ── HEADER ──────────────────────────────────── -->
+  <div id="header">
+    <div class="logo">POCKET&nbsp;<span class="lo-green">OUTLOOK</span>&nbsp;<span class="lo-ver">v2.0</span></div>
+    <input id="gsearch" type="text" placeholder="TICKER OR COMPANY..." onkeydown="if(event.key==='Enter')globalSearch()">
+    <button id="gbtn" onclick="globalSearch()">GO&nbsp;&#8594;</button>
+    <nav class="nav">
+      <button class="nav-btn active" data-panel="filings"   onclick="switchPanel('filings')">F2&nbsp;FILINGS</button>
+      <button class="nav-btn"        data-panel="valuation" onclick="switchPanel('valuation')">F3&nbsp;VALUATION</button>
+      <button class="nav-btn"        data-panel="insider"   onclick="switchPanel('insider')">F4&nbsp;INSIDER</button>
+      <button class="nav-btn"        data-panel="watchlist" onclick="switchPanel('watchlist')">F5&nbsp;WATCHLIST</button>
+    </nav>
   </div>
 
-  <!-- EQUITIES -->
-  <div class="section-label">Equities & Volatility</div>
-  <div class="grid grid-4">
-    <a class="card neutral" id="card-spx" href="https://finance.yahoo.com/quote/%5EGSPC/" target="_blank">
-      <div class="card-label">S&P 500</div>
-      <div class="card-value" id="spx-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="spx-change">—</span>
-        <span class="card-sub" id="spx-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-ndx" href="https://finance.yahoo.com/quote/%5EIXIC/" target="_blank">
-      <div class="card-label">NASDAQ</div>
-      <div class="card-value" id="ndx-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="ndx-change">—</span>
-        <span class="card-sub" id="ndx-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-dji" href="https://finance.yahoo.com/quote/%5EDJI/" target="_blank">
-      <div class="card-label">Dow Jones</div>
-      <div class="card-value" id="dji-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="dji-change">—</span>
-        <span class="card-sub" id="dji-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-vix" href="https://finance.yahoo.com/quote/%5EVIX/" target="_blank">
-      <div class="card-label">VIX — Fear Index</div>
-      <div class="card-value" id="vix-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="vix-change">—</span>
-        <span class="card-sub" id="vix-label">—</span>
-      </div>
-    </a>
-  </div>
-
-  <!-- RATES & MACRO -->
-  <div class="section-label">Rates & Macro</div>
-  <div class="grid grid-rates" style="grid-template-columns: repeat(7, 1fr);">
-    <a class="card neutral" id="card-tbill" href="https://finance.yahoo.com/quote/%5EIRX/" target="_blank">
-      <div class="card-label">3-Mo T-Bill — Risk Free</div>
-      <div class="card-value" id="tbill-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="tbill-change">—</span>
-        <span class="card-sub" id="tbill-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-tny" href="https://finance.yahoo.com/quote/%5ETNX/" target="_blank">
-      <div class="card-label">10-Yr Treasury Yield</div>
-      <div class="card-value" id="tny-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="tny-change">—</span>
-        <span class="card-sub" id="tny-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-tny30" href="https://finance.yahoo.com/quote/%5ETYX/" target="_blank">
-      <div class="card-label">30-Yr Treasury Yield</div>
-      <div class="card-value" id="tny30-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="tny30-change">—</span>
-        <span class="card-sub" id="tny30-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-dxy" href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank">
-      <div class="card-label">USD Index (DXY)</div>
-      <div class="card-value" id="dxy-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="dxy-change">—</span>
-        <span class="card-sub" id="dxy-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-cpi" href="https://www.bls.gov/cpi/" target="_blank">
-      <div class="card-label">CPI (YoY) — Latest</div>
-      <div class="card-value" id="cpi-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="cpi-change">—</span>
-        <span class="card-sub" id="cpi-date">U.S. Bureau of Labor Statistics</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-fedrate" href="https://www.federalreserve.gov/monetarypolicy/openmarket.htm" target="_blank">
-      <div class="card-label">Fed Funds Rate</div>
-      <div class="card-value" id="fedrate-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="fedrate-change">—</span>
-        <span class="card-sub" id="fedrate-sub">Target Range</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-fedmeeting" href="https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" target="_blank">
-      <div class="card-label">Next FOMC Meeting</div>
-      <div class="card-value" id="fedmeeting-price" style="font-size:18px;"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="card-sub" id="fedmeeting-sub">—</span>
-      </div>
-    </a>
-  </div>
-
-  <!-- COMMODITIES & CRYPTO -->
-  <div class="section-label">Commodities & Digital Assets</div>
-  <div class="grid grid-4">
-    <a class="card neutral" id="card-gold" href="https://finance.yahoo.com/quote/GC=F/" target="_blank">
-      <div class="card-label">Gold Futures</div>
-      <div class="card-value" id="gold-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="gold-change">—</span>
-        <span class="card-sub" id="gold-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-oil" href="https://finance.yahoo.com/quote/BZ=F/" target="_blank">
-      <div class="card-label">Brent Crude Oil</div>
-      <div class="card-value" id="oil-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="oil-change">—</span>
-        <span class="card-sub" id="oil-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-btc" href="https://www.coinbase.com/price/bitcoin" target="_blank">
-      <div class="card-label">Bitcoin (BTC)</div>
-      <div class="card-value" id="btc-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="btc-change">—</span>
-        <span class="card-sub" id="btc-pct">—</span>
-      </div>
-    </a>
-    <a class="card neutral" id="card-eth" href="https://www.coinbase.com/price/ethereum" target="_blank">
-      <div class="card-label">Ethereum (ETH)</div>
-      <div class="card-value" id="eth-price"><span class="loading-pulse"></span></div>
-      <div class="card-meta">
-        <span class="change neutral" id="eth-change">—</span>
-        <span class="card-sub" id="eth-pct">—</span>
-      </div>
-    </a>
-  </div>
-
-  <!-- CHARTS -->
-  <div class="section-label charts-section-label" style="margin-top: 36px;">
-    <span>Charts</span>
-    <div class="range-tabs">
-      <button class="range-tab" data-range="5d" data-interval="1d">1W</button>
-      <button class="range-tab" data-range="1mo" data-interval="1d">1M</button>
-      <button class="range-tab" data-range="6mo" data-interval="1d">6M</button>
-      <button class="range-tab active" data-range="1y" data-interval="1d">1Y</button>
-      <button class="range-tab" data-range="ytd" data-interval="1d">YTD</button>
-      <button class="range-tab" data-range="5y" data-interval="1wk">5Y</button>
+  <!-- ══ FILINGS PANEL ══════════════════════════════ -->
+  <div id="panel-filings" class="panel active">
+    <div class="panel-bar">
+      <span class="panel-title">SEC EDGAR FILING SEARCH</span>
+      <span class="panel-bar-meta">SOURCE: EFTS.SEC.GOV &nbsp;|&nbsp; EDGAR FULL-TEXT SEARCH</span>
     </div>
-  </div>
-  <div class="charts-row">
+    <div class="f-layout">
+      <div class="f-sidebar">
+        <div class="sh">SEARCH PARAMETERS</div>
 
-    <div class="chart-panel">
-      <div class="chart-header">
-        <div class="chart-title-row">
-          <div class="chart-title" id="chart1-title">S&amp;P 500</div>
-          <span class="chart-pct-badge" id="chart1-pct">—</span>
+        <div class="f-row">
+          <span class="f-label">COMPANY / TICKER</span>
+          <input type="text" id="fq" placeholder="e.g. AAPL, Apple Inc." onkeydown="if(event.key==='Enter')searchEDGAR()">
         </div>
-        <div class="chart-tabs" data-chart="1">
-          <button class="chart-tab active" data-symbol="%5EGSPC" data-label="S&amp;P 500">SPX</button>
-          <button class="chart-tab" data-symbol="%5EIXIC" data-label="NASDAQ">NDX</button>
-          <button class="chart-tab" data-symbol="%5EDJI" data-label="Dow Jones">DOW</button>
-          <button class="chart-tab" data-symbol="%5EVIX" data-label="VIX">VIX</button>
+        <div class="f-row">
+          <span class="f-label">FROM DATE</span>
+          <input type="text" id="fstart" placeholder="YYYY-MM-DD">
         </div>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="chart1"></canvas>
-        <div class="chart-loading" id="chart1-loading">Loading chart...</div>
-        <div class="chart-drag-pct" id="chart1-drag-pct"></div>
-      </div>
-    </div>
-
-    <div class="chart-panel">
-      <div class="chart-header">
-        <div class="chart-title-row">
-          <div class="chart-title" id="chart2-title">3-Mo T-Bill</div>
-          <span class="chart-pct-badge" id="chart2-pct">—</span>
+        <div class="f-row">
+          <span class="f-label">TO DATE</span>
+          <input type="text" id="fend" placeholder="YYYY-MM-DD">
         </div>
-        <div class="chart-tabs" data-chart="2">
-          <button class="chart-tab active" data-symbol="%5EIRX" data-label="3-Mo T-Bill">3-MO</button>
-          <button class="chart-tab" data-symbol="%5ETNX" data-label="10-Yr Treasury">10-YR</button>
-          <button class="chart-tab" data-symbol="%5ETYX" data-label="30-Yr Treasury">30-YR</button>
-          <button class="chart-tab" data-symbol="DX-Y.NYB" data-label="USD Index (DXY)">DXY</button>
-        </div>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="chart2"></canvas>
-        <div class="chart-loading" id="chart2-loading">Loading chart...</div>
-        <div class="chart-drag-pct" id="chart2-drag-pct"></div>
-      </div>
-    </div>
 
-    <div class="chart-panel">
-      <div class="chart-header">
-        <div class="chart-title-row">
-          <div class="chart-title" id="chart3-title">Gold Futures</div>
-          <span class="chart-pct-badge" id="chart3-pct">—</span>
-        </div>
-        <div class="chart-tabs" data-chart="3">
-          <button class="chart-tab active" data-symbol="GC%3DF" data-label="Gold Futures">GOLD</button>
-          <button class="chart-tab" data-symbol="BZ%3DF" data-label="Brent Crude">OIL</button>
-          <button class="chart-tab" data-symbol="BTC-USD" data-label="Bitcoin">BTC</button>
-          <button class="chart-tab" data-symbol="ETH-USD" data-label="Ethereum">ETH</button>
-        </div>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="chart3"></canvas>
-        <div class="chart-loading" id="chart3-loading">Loading chart...</div>
-        <div class="chart-drag-pct" id="chart3-drag-pct"></div>
-      </div>
-    </div>
-
-  </div>
-
-
-  <!-- NEWS -->
-  <div class="section-label" style="margin-top: 36px;">Market Intelligence</div>
-  <div class="news-grid">
-
-    <div class="news-panel">
-      <div class="news-panel-header">
-        <span class="news-source-dot dot-nyt"></span>
-        <span class="news-source-name">New York Times</span>
-        <span class="news-refresh-time" id="nyt-time">—</span>
-      </div>
-      <div class="sentiment-bar-wrap" id="nyt-sentiment-wrap">
-        <div class="sentiment-label-row">
-          <span class="sentiment-tag" id="nyt-sentiment-tag">—</span>
-          <span class="sentiment-score" id="nyt-sentiment-score"></span>
-        </div>
-        <div class="sentiment-track">
-          <div class="sentiment-fill" id="nyt-sentiment-fill"></div>
-          <div class="sentiment-center"></div>
-        </div>
-      </div>
-      <div class="news-list" id="news-nyt">
-        <div class="news-loading">Fetching headlines...</div>
-      </div>
-    </div>
-
-    <div class="news-panel">
-      <div class="news-panel-header">
-        <span class="news-source-dot dot-mw"></span>
-        <span class="news-source-name">MarketWatch</span>
-        <span class="news-refresh-time" id="mw-time">—</span>
-      </div>
-      <div class="sentiment-bar-wrap" id="mw-sentiment-wrap">
-        <div class="sentiment-label-row">
-          <span class="sentiment-tag" id="mw-sentiment-tag">—</span>
-          <span class="sentiment-score" id="mw-sentiment-score"></span>
-        </div>
-        <div class="sentiment-track">
-          <div class="sentiment-fill" id="mw-sentiment-fill"></div>
-          <div class="sentiment-center"></div>
-        </div>
-      </div>
-      <div class="news-list" id="news-mw">
-        <div class="news-loading">Fetching headlines...</div>
-      </div>
-    </div>
-
-    <div class="news-panel">
-      <div class="news-panel-header">
-        <span class="news-source-dot dot-bbg"></span>
-        <span class="news-source-name">Bloomberg Markets</span>
-        <span class="news-refresh-time" id="bbg-time">—</span>
-      </div>
-      <div class="sentiment-bar-wrap" id="bbg-sentiment-wrap">
-        <div class="sentiment-label-row">
-          <span class="sentiment-tag" id="bbg-sentiment-tag">—</span>
-          <span class="sentiment-score" id="bbg-sentiment-score"></span>
-        </div>
-        <div class="sentiment-track">
-          <div class="sentiment-fill" id="bbg-sentiment-fill"></div>
-          <div class="sentiment-center"></div>
-        </div>
-      </div>
-      <div class="news-list" id="news-bbg">
-        <div class="news-loading">Fetching headlines...</div>
-      </div>
-    </div>
-
-  </div>
-
-  <div class="status-bar">
-    <span class="status-dot"></span>
-    <span>Live data via Yahoo Finance & CoinGecko</span>
-    <span class="divider">|</span>
-    <span>Auto-refreshes every 60 seconds</span>
-    <span class="divider">|</span>
-    <span id="fetch-status">Initializing...</span>
-  </div>
-
-  <!-- Dictionary — lives inside overview tab so it disappears on other tabs -->
-  <button class="dict-fab" id="dictFab" onclick="toggleDictionary()">
-    <svg class="dict-fab-svg" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polyline points="1,11 4,7 6,9 9,4 13,6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="1" y1="13" x2="13" y2="13" stroke="currentColor" stroke-width="1" opacity="0.4"/>
-    </svg>
-    <span class="dict-fab-label">Dictionary</span>
-  </button>
-
-  <div class="dict-panel" id="dictPanel">
-    <div class="dict-panel-header">
-      <div class="dict-panel-title">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><polyline points="1,9 3,6 5,7.5 8,3 11,5" stroke="#00d97e" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="1" y1="11" x2="11" y2="11" stroke="#2a2a30" stroke-width="1"/></svg>
-        Financial Dictionary
-      </div>
-      <button class="dict-panel-close" onclick="toggleDictionary()">✕</button>
-    </div>
-    <div class="dict-search-wrap">
-      <input class="dict-search" id="dictSearch" type="text" placeholder="Search terms..." oninput="filterDictionary(this.value)">
-    </div>
-    <div class="dict-list" id="dictList"></div>
-  </div>
-  <div class="dict-overlay" id="dictOverlay" onclick="toggleDictionary()"></div>
-
-  </div><!-- /tab-overview -->
-
-  <!-- TAB: EQUITY SECURITIES -->
-  <div id="tab-equity" class="tab-panel hidden">
-
-    <!-- LEFT: Full-height Watchlist Sidebar -->
-    <div class="eq-sidebar-left">
-      <div class="eq-watchlist-header">Watchlist</div>
-      <div class="eq-watchlist-body" id="eq-watchlist-body"></div>
-      <div class="eq-add-group-wrap">
-        <button class="eq-add-group-btn" onclick="addWatchlistGroup()">+ New Group</button>
-      </div>
-    </div>
-
-    <!-- RIGHT: Content Area -->
-    <div class="eq-content">
-      <div class="eq-search-wrap">
-        <div class="eq-search-input-wrap">
-          <input id="eq-ticker-input" placeholder="Search ticker or company name..." autocomplete="off" />
-          <div id="eq-search-drop" class="eq-search-drop" style="display:none"></div>
-        </div>
-        <button onclick="loadEquityStock(document.getElementById('eq-ticker-input').value.trim().toUpperCase())">Analyze →</button>
-      </div>
-      <div id="eq-stock-header" class="eq-stock-header" style="display:none"></div>
-      <div class="eq-chart-data-row">
-        <!-- Chart column -->
-        <div class="eq-chart-col">
-          <div class="chart-panel">
-            <div class="chart-header">
-              <div class="chart-title-row">
-                <div class="chart-title" id="eq-chart-title">—</div>
-                <span class="chart-pct-badge" id="eq-chart-pct">—</span>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <div class="eq-chart-type-toggle">
-                  <button class="chart-tab active" id="eq-toggle-line" onclick="setEqChartType('line')">Line</button>
-                  <button class="chart-tab" id="eq-toggle-candle" onclick="setEqChartType('candle')">Candle</button>
-                </div>
-                <div class="chart-tabs" id="eq-range-tabs">
-                  <button class="range-tab" data-range="5d" data-interval="1d">1W</button>
-                  <button class="range-tab" data-range="1mo" data-interval="1d">1M</button>
-                  <button class="range-tab" data-range="6mo" data-interval="1d">6M</button>
-                  <button class="range-tab active" data-range="1y" data-interval="1d">1Y</button>
-                  <button class="range-tab" data-range="ytd" data-interval="1d">YTD</button>
-                  <button class="range-tab" data-range="5y" data-interval="1wk">5Y</button>
-                </div>
-              </div>
-            </div>
-            <div class="eq-chart-container">
-              <canvas id="eq-chart"></canvas>
-              <div class="chart-loading" id="eq-chart-loading">Enter a ticker to load chart</div>
-            </div>
-            <div class="eq-zoom-hint">Scroll to zoom · drag to measure · dbl-click to reset</div>
+        <div class="f-row">
+          <span class="f-label">FORM TYPES (TOGGLE)</span>
+          <div class="form-grid">
+            <button class="fg-btn on"  data-form="10-K"    onclick="fgToggle(this)">10-K</button>
+            <button class="fg-btn on"  data-form="10-Q"    onclick="fgToggle(this)">10-Q</button>
+            <button class="fg-btn"     data-form="8-K"     onclick="fgToggle(this)">8-K</button>
+            <button class="fg-btn"     data-form="DEF 14A" onclick="fgToggle(this)">DEF&nbsp;14A</button>
+            <button class="fg-btn"     data-form="S-1"     onclick="fgToggle(this)">S-1</button>
+            <button class="fg-btn"     data-form="20-F"    onclick="fgToggle(this)">20-F</button>
+            <button class="fg-btn"     data-form="4"       onclick="fgToggle(this)">FORM&nbsp;4</button>
+            <button class="fg-btn"     data-form="13F-HR"  onclick="fgToggle(this)">13F-HR</button>
           </div>
         </div>
-        <!-- Fundamentals data panel -->
-        <div class="eq-data-col" id="eq-data-col">
-          <div style="padding:40px 20px;font-size:11px;color:var(--muted);text-align:center;line-height:1.8">Search for a stock to view<br>fundamentals &amp; metrics.</div>
-        </div>
+
+        <button class="btn btn-a" style="width:100%;margin-top:4px" onclick="searchEDGAR()">SEARCH EDGAR &#8594;</button>
+        <div id="f-count" style="font-size:10px;color:var(--muted);text-align:center;margin-top:3px"></div>
       </div>
-    </div>
 
-  </div><!-- /tab-equity -->
-
-  <!-- TAB: DEBT SECURITIES -->
-  <div id="tab-debt" class="tab-panel hidden">
-    <div class="wip-block">
-      <div class="wip-label">Debt Securities</div>
-      <div class="wip-text">Work in progress</div>
-      <div class="wip-sub">Fixed income & bond tracking coming soon</div>
+      <div class="f-main" id="f-results">
+        <div class="empty">ENTER A COMPANY NAME OR TICKER TO SEARCH SEC EDGAR FILINGS.<br><br>
+        TIPS: USE QUOTES FOR EXACT PHRASES &nbsp;|&nbsp; TOGGLE FORM TYPES TO FILTER &nbsp;|&nbsp; DATE RANGE IS OPTIONAL</div>
+      </div>
     </div>
   </div>
 
-</main>
+  <!-- ══ VALUATION PANEL ════════════════════════════ -->
+  <div id="panel-valuation" class="panel">
+    <div class="panel-bar">
+      <span class="panel-title">DCF INTRINSIC VALUE CALCULATOR</span>
+      <span class="panel-bar-meta">DISCOUNTED CASH FLOW &nbsp;|&nbsp; SENSITIVITY ANALYSIS &nbsp;|&nbsp; KEY RATIOS</span>
+    </div>
+    <div class="v-layout">
 
-<!-- CDN Dependencies (loaded before ES module) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial/dist/chartjs-chart-financial.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/luxon/build/global/luxon.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon/dist/chartjs-adapter-luxon.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+      <!-- Col 1: Inputs -->
+      <div class="v-col">
+        <div class="sh">DCF INPUTS</div>
+        <div class="ig">
+          <div class="ir"><label>LAST FCF ($M)</label><input type="number" id="vfcf" placeholder="e.g. 90000"></div>
+          <div class="ir"><label>SHARES OUT (M)</label><input type="number" id="vshr" placeholder="e.g. 15500"></div>
+          <div class="ir"><label>GROWTH Y1&#8211;5 (%)</label><input type="number" id="vg1" placeholder="e.g. 8" step="0.5"></div>
+          <div class="ir"><label>GROWTH Y6&#8211;10 (%)</label><input type="number" id="vg2" placeholder="e.g. 5" step="0.5"></div>
+          <div class="ir"><label>TERMINAL GROWTH (%)</label><input type="number" id="vtg" placeholder="e.g. 2.5" step="0.25"></div>
+          <div class="ir"><label>WACC / DISC. RATE (%)</label><input type="number" id="vwacc" placeholder="e.g. 10" step="0.5"></div>
+          <div class="ir"><label>TOTAL DEBT ($M)</label><input type="number" id="vdebt" placeholder="e.g. 110000"></div>
+          <div class="ir"><label>CASH &amp; EQUIV ($M)</label><input type="number" id="vcash" placeholder="e.g. 65000"></div>
+        </div>
+        <button class="btn btn-g" style="width:100%" onclick="calcDCF()">CALCULATE INTRINSIC VALUE &#8594;</button>
 
-<!-- App Entry Point -->
-<script type="module" src="js/main.js"></script>
+        <div style="margin-top:16px">
+          <div class="sh">RATIO CALCULATOR</div>
+          <div class="ig">
+            <div class="ir"><label>CURRENT PRICE ($)</label><input type="number" id="rprice" placeholder="e.g. 185.50" step="0.01"></div>
+            <div class="ir"><label>EPS (TTM)</label><input type="number" id="reps" placeholder="e.g. 6.45" step="0.01"></div>
+            <div class="ir"><label>BOOK VALUE/SH ($)</label><input type="number" id="rbv" placeholder="e.g. 4.10" step="0.01"></div>
+            <div class="ir"><label>REVENUE ($M)</label><input type="number" id="rrev" placeholder="e.g. 385000"></div>
+            <div class="ir"><label>EBITDA ($M)</label><input type="number" id="rebitda" placeholder="e.g. 125000"></div>
+            <div class="ir"><label>NET INCOME ($M)</label><input type="number" id="rni" placeholder="e.g. 97000"></div>
+            <div class="ir"><label>TOTAL EQUITY ($M)</label><input type="number" id="requity" placeholder="e.g. 60000"></div>
+            <div class="ir"><label>MARKET CAP ($M)</label><input type="number" id="rmktcap" placeholder="e.g. 2800000"></div>
+          </div>
+          <button class="btn btn-a" style="width:100%" onclick="calcRatios()">CALCULATE RATIOS &#8594;</button>
+        </div>
+      </div>
 
-<!-- ── Drag Tooltip ── -->
-<div id="drag-tooltip" style="display:none;position:fixed;background:#1a1a20;border:1px solid var(--border-bright);border-radius:5px;padding:6px 10px;font-family:var(--mono);font-size:12px;pointer-events:none;z-index:800;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.5);"></div>
+      <!-- Col 2: Results -->
+      <div class="v-col">
+        <div class="sh">DCF OUTPUT</div>
+        <div id="dcf-out"><div class="empty" style="padding:20px 0">ENTER INPUTS AND CALCULATE.</div></div>
+        <div style="margin-top:14px">
+          <div class="sh">RATIO OUTPUT</div>
+          <div id="ratio-out"><div class="empty" style="padding:20px 0">ENTER FINANCIALS AND CALCULATE.</div></div>
+        </div>
+      </div>
 
+      <!-- Col 3: Sensitivity + Breakdown -->
+      <div class="v-col">
+        <div class="sh">SENSITIVITY TABLE &#8212; IV PER SHARE</div>
+        <div id="sense-out"><div class="empty" style="padding:20px 0">RUN DCF TO GENERATE SENSITIVITY ANALYSIS.</div></div>
+        <div style="margin-top:14px">
+          <div class="sh">PROJECTED CASH FLOWS</div>
+          <div id="dcf-break"></div>
+        </div>
+      </div>
 
+    </div>
+  </div>
+
+  <!-- ══ INSIDER PANEL ══════════════════════════════ -->
+  <div id="panel-insider" class="panel">
+    <div class="panel-bar">
+      <span class="panel-title">INSIDER TRANSACTION TRACKER</span>
+      <span class="panel-bar-meta">SOURCE: SEC EDGAR FORM 4 &nbsp;|&nbsp; DIRECT FILINGS ONLY</span>
+    </div>
+    <div class="i-layout">
+      <div class="i-ctrl">
+        <span style="font-size:10px;color:var(--muted)">TICKER:</span>
+        <input type="text" id="iticker" placeholder="e.g. AAPL" style="width:110px;text-transform:uppercase" onkeydown="if(event.key==='Enter')loadInsider()">
+        <button class="btn btn-a" onclick="loadInsider()">LOAD INSIDER DATA &#8594;</button>
+        <span id="insider-meta" style="font-size:10px;color:var(--muted);margin-left:8px"></span>
+      </div>
+      <div class="i-main" id="i-results">
+        <div class="empty">ENTER A TICKER TO LOAD INSIDER TRANSACTIONS FROM SEC EDGAR FORM 4 FILINGS.<br><br>
+        SHOWS RECENT OPEN-MARKET PURCHASES, SALES, AND AWARDS FROM CORPORATE INSIDERS.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ WATCHLIST PANEL ════════════════════════════ -->
+  <div id="panel-watchlist" class="panel">
+    <div class="panel-bar">
+      <span class="panel-title">RESEARCH WATCHLIST</span>
+      <span class="panel-bar-meta">PERSISTED IN LOCALSTORAGE &nbsp;|&nbsp; CLICK ROW TO EXPAND</span>
+    </div>
+    <div class="wl-layout">
+      <div class="wl-sidebar">
+        <div class="sh">ADD TICKER</div>
+        <div class="wl-row"><span class="wl-label">TICKER *</span>
+          <input type="text" id="wlticker" placeholder="e.g. AAPL" style="text-transform:uppercase">
+        </div>
+        <div class="wl-row"><span class="wl-label">COMPANY NAME</span>
+          <input type="text" id="wlname" placeholder="e.g. Apple Inc.">
+        </div>
+        <div class="wl-row"><span class="wl-label">INTRINSIC VALUE ($)</span>
+          <input type="number" id="wliv" placeholder="e.g. 185.50" step="0.01">
+        </div>
+        <div class="wl-row"><span class="wl-label">RESEARCH NOTES</span>
+          <textarea id="wlnotes" placeholder="Thesis, catalysts, targets, risks..."></textarea>
+        </div>
+        <button class="btn btn-g" style="width:100%" onclick="addWL()">ADD TO WATCHLIST &#8594;</button>
+
+        <div style="margin-top:14px">
+          <div class="sh">QUICK ACTIONS</div>
+          <button class="btn" style="width:100%;font-size:10px;margin-bottom:3px" onclick="exportWL()">EXPORT JSON &#8594;</button>
+          <div id="wl-count" style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div class="wl-main" id="wl-items">
+        <div class="empty">YOUR RESEARCH WATCHLIST IS EMPTY.<br><br>ADD TICKERS TO TRACK COMPANIES, STORE VALUATION ESTIMATES, AND ORGANIZE YOUR RESEARCH.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STATUS BAR ──────────────────────────────── -->
+  <div id="sbar">
+    <span id="sbar-msg">READY &#8212; POCKET OUTLOOK v2.0 / SEC EDGAR RESEARCH TERMINAL</span>
+    <span id="sbar-time"></span>
+  </div>
+
+</div><!-- #app -->
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  POCKET OUTLOOK v2.0 — SEC EDGAR RESEARCH TERMINAL
+//  Single-file inline app. No paid APIs. All public data.
+// ══════════════════════════════════════════════════════════════
+
+const EFTS        = 'https://efts.sec.gov/LATEST/search-index';
+const SUBMISSIONS = 'https://data.sec.gov/submissions';
+const ARCHIVES    = 'https://www.sec.gov/Archives/edgar/data';
+const TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
+
+let TICKERS_CACHE = null;
+let watchlist     = [];
+let wlSelected    = null;
+
+// ── UTILS ───────────────────────────────────────────────────
+
+function $i(id) { return document.getElementById(id); }
+
+function setStatus(msg, color) {
+  const el = $i('sbar-msg');
+  el.textContent = msg;
+  el.style.color = color || 'var(--green-dim)';
+}
+
+function fmt(n, dec) {
+  if (n === null || n === undefined || isNaN(n)) return '\u2014';
+  return Number(n).toLocaleString('en-US', {
+    minimumFractionDigits: dec ?? 2,
+    maximumFractionDigits: dec ?? 2
+  });
+}
+
+function fmtDollar(n) {
+  if (n === null || n === undefined || isNaN(n)) return '\u2014';
+  return '$' + fmt(n, 2);
+}
+
+// Format raw dollar values (e.g. transaction value = shares * price)
+function fmtUSD(n) {
+  if (!n && n !== 0) return '\u2014';
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return '$' + (n / 1e12).toFixed(2) + 'T';
+  if (abs >= 1e9)  return '$' + (n / 1e9).toFixed(2)  + 'B';
+  if (abs >= 1e6)  return '$' + (n / 1e6).toFixed(2)  + 'M';
+  if (abs >= 1e3)  return '$' + (n / 1e3).toFixed(1)  + 'K';
+  return '$' + n.toFixed(2);
+}
+
+// Format values already in millions (DCF inputs/outputs)
+function fmtM(n) {
+  if (n === null || n === undefined || isNaN(n)) return '\u2014';
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'T';
+  if (abs >= 1e3) return '$' + (n / 1e3).toFixed(2) + 'B';
+  return '$' + n.toFixed(1) + 'M';
+}
+
+function fmtNum(n) {
+  if (!n && n !== 0) return '\u2014';
+  return Number(n).toLocaleString('en-US');
+}
+
+function escH(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Clock
+setInterval(() => {
+  $i('sbar-time').textContent = new Date().toUTCString().replace(' GMT', ' UTC');
+}, 1000);
+$i('sbar-time').textContent = new Date().toUTCString().replace(' GMT', ' UTC');
+
+// ── NAVIGATION ──────────────────────────────────────────────
+
+function switchPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.panel === name);
+  });
+  $i('panel-' + name).classList.add('active');
+  setStatus('PANEL: ' + name.toUpperCase());
+  if (name === 'watchlist') renderWL();
+}
+
+function globalSearch() {
+  const q = $i('gsearch').value.trim();
+  if (!q) return;
+  $i('fq').value = q;
+  switchPanel('filings');
+  searchEDGAR();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'F2') { e.preventDefault(); switchPanel('filings'); }
+  if (e.key === 'F3') { e.preventDefault(); switchPanel('valuation'); }
+  if (e.key === 'F4') { e.preventDefault(); switchPanel('insider'); }
+  if (e.key === 'F5') { e.preventDefault(); switchPanel('watchlist'); }
+});
+
+// ── EDGAR TICKERS / CIK LOOKUP ──────────────────────────────
+
+async function fetchTickers() {
+  if (TICKERS_CACHE) return TICKERS_CACHE;
+  setStatus('LOADING EDGAR TICKER DATABASE (~3MB)...');
+  const res = await fetch(TICKERS_URL);
+  TICKERS_CACHE = await res.json();
+  setStatus('EDGAR TICKER DATABASE CACHED');
+  return TICKERS_CACHE;
+}
+
+async function getCIK(query) {
+  const tickers = await fetchTickers();
+  const q = query.trim().toUpperCase();
+  const byTicker = Object.values(tickers).find(t => t.ticker.toUpperCase() === q);
+  if (byTicker) return { cik: String(byTicker.cik_str).padStart(10, '0'), name: byTicker.title };
+  const ql = query.toLowerCase();
+  const byName = Object.values(tickers).find(t => t.title.toLowerCase().includes(ql));
+  if (byName) return { cik: String(byName.cik_str).padStart(10, '0'), name: byName.title };
+  return null;
+}
+
+// ── FILINGS PANEL ───────────────────────────────────────────
+
+function fgToggle(btn) { btn.classList.toggle('on'); }
+
+function getActiveForms() {
+  return Array.from(document.querySelectorAll('.fg-btn.on')).map(b => b.dataset.form);
+}
+
+async function searchEDGAR() {
+  const query = $i('fq').value.trim();
+  if (!query) { setStatus('ERROR: ENTER A COMPANY OR TICKER', 'var(--red)'); return; }
+  const forms = getActiveForms();
+  if (!forms.length) { setStatus('ERROR: SELECT AT LEAST ONE FORM TYPE', 'var(--red)'); return; }
+
+  const start = $i('fstart').value.trim();
+  const end   = $i('fend').value.trim();
+  const results = $i('f-results');
+  results.innerHTML = '<div class="loading">&#9632; QUERYING SEC EDGAR EFTS...</div>';
+  setStatus('SEARCHING EDGAR: "' + query.toUpperCase() + '"...');
+
+  try {
+    const params = new URLSearchParams({ q: '"' + query + '"', forms: forms.join(','), from: 0, size: 50 });
+    if (start || end) params.set('dateRange', 'custom');
+    if (start) params.set('startdt', start);
+    if (end)   params.set('enddt', end);
+
+    const res = await fetch(EFTS + '?' + params);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    const hits  = data.hits?.hits || [];
+    const total = data.hits?.total?.value || 0;
+    $i('f-count').textContent = total.toLocaleString() + ' RESULT' + (total !== 1 ? 'S' : '');
+    setStatus('EDGAR: ' + total.toLocaleString() + ' FILING' + (total !== 1 ? 'S' : '') + ' FOUND FOR "' + query.toUpperCase() + '"');
+
+    if (!hits.length) {
+      results.innerHTML = '<div class="empty">NO FILINGS FOUND.<br>TRY A DIFFERENT QUERY, DATE RANGE, OR FORM TYPE.</div>';
+      return;
+    }
+    renderFilings(hits, total);
+
+  } catch (err) {
+    results.innerHTML = '<div class="errmsg">EDGAR API ERROR: ' + escH(err.message) + '<br><br>SEC EDGAR may be temporarily unavailable. Try again shortly.</div>';
+    setStatus('EDGAR SEARCH ERROR: ' + err.message, 'var(--red)');
+  }
+}
+
+function renderFilings(hits, total) {
+  let rows = '';
+  for (const hit of hits) {
+    const src    = hit._source || {};
+    const accNo  = hit._id || '';
+    const co     = escH(src.entity_name || (src.display_names?.[0]?.split(' (CIK')[0]) || '\u2014');
+    const form   = escH(src.form_type || '\u2014');
+    const filed  = src.file_date || '\u2014';
+    const period = src.period_of_report || '\u2014';
+
+    let cik = '';
+    if (src.display_names?.[0]) {
+      const m = src.display_names[0].match(/CIK\s+(\d+)/i);
+      if (m) cik = m[1];
+    }
+
+    const accNoDash = accNo.replace(/-/g, '');
+    const cikInt    = cik ? parseInt(cik) : '';
+    const fileUrl   = cikInt
+      ? ARCHIVES + '/' + cikInt + '/' + accNoDash + '/'
+      : 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=' + cik + '&type=' + encodeURIComponent(src.form_type || '') + '&dateb=&owner=include&count=10';
+
+    rows += '<tr>' +
+      '<td title="' + co + '">' + co + '</td>' +
+      '<td class="hi">' + form + '</td>' +
+      '<td>' + filed + '</td>' +
+      '<td class="mu">' + period + '</td>' +
+      '<td class="mu">' + (cik || '\u2014') + '</td>' +
+      '<td><a class="td-link" href="' + escH(fileUrl) + '" target="_blank" rel="noopener noreferrer">EDGAR&nbsp;&#8599;</a></td>' +
+      '</tr>';
+  }
+
+  let html = '<table class="dt" style="table-layout:fixed">' +
+    '<colgroup>' +
+    '<col style="width:220px"><col style="width:80px"><col style="width:100px">' +
+    '<col style="width:100px"><col style="width:90px"><col style="width:70px">' +
+    '</colgroup>' +
+    '<thead><tr>' +
+    '<th>COMPANY</th><th>FORM</th><th>FILED DATE</th>' +
+    '<th>PERIOD</th><th>CIK</th><th>LINK</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '</table>';
+
+  if (total > hits.length) {
+    html += '<div style="padding:8px 12px;font-size:10px;color:var(--muted)">' +
+      'SHOWING ' + hits.length + ' OF ' + total.toLocaleString() + ' \u2014 REFINE QUERY OR NARROW DATE RANGE FOR MORE SPECIFIC RESULTS.' +
+      '</div>';
+  }
+  $i('f-results').innerHTML = html;
+}
+
+// ── DCF VALUATION ───────────────────────────────────────────
+
+function calcDCF() {
+  const fcf  = parseFloat($i('vfcf').value);
+  const shr  = parseFloat($i('vshr').value);
+  const g1   = parseFloat($i('vg1').value)   / 100;
+  const g2   = parseFloat($i('vg2').value)   / 100;
+  const tg   = parseFloat($i('vtg').value)   / 100;
+  const wacc = parseFloat($i('vwacc').value) / 100;
+  const debt = parseFloat($i('vdebt').value) || 0;
+  const cash = parseFloat($i('vcash').value) || 0;
+
+  if ([fcf, shr, g1, g2, tg, wacc].some(isNaN)) {
+    $i('dcf-out').innerHTML = '<div class="errmsg">FILL ALL REQUIRED FIELDS (FCF, SHARES, BOTH GROWTH RATES, WACC, TERMINAL GROWTH)</div>';
+    return;
+  }
+  if (wacc <= tg) {
+    $i('dcf-out').innerHTML = '<div class="errmsg">ERROR: WACC MUST BE GREATER THAN TERMINAL GROWTH RATE</div>';
+    return;
+  }
+
+  const result = runDCF(fcf, shr, debt, cash, g1, g2, wacc, tg);
+
+  $i('dcf-out').innerHTML =
+    '<div class="iv-box">' +
+      '<div class="iv-lbl">INTRINSIC VALUE PER SHARE</div>' +
+      '<div class="iv-num">' + fmtDollar(result.iv) + '</div>' +
+      '<div class="iv-sub">ENTERPRISE VALUE: ' + fmtM(result.ev) + '</div>' +
+      '<div class="iv-sub">EQUITY VALUE: ' + fmtM(result.eqv) + ' &nbsp;|&nbsp; SHARES: ' + fmtNum(shr) + 'M</div>' +
+      '<div class="iv-sub" style="margin-top:4px">PV OF FCFs: ' + fmtM(result.pvFCF) + ' &nbsp;|&nbsp; PV OF TERMINAL: ' + fmtM(result.pvTV) + '</div>' +
+      '<div class="iv-sub">TERMINAL VALUE (PRE-DISC.): ' + fmtM(result.tvFull) + '</div>' +
+    '</div>';
+
+  setStatus('DCF: IV = ' + fmtDollar(result.iv) + '  |  WACC ' + (wacc*100).toFixed(1) + '%  |  TERM GROWTH ' + (tg*100).toFixed(2) + '%');
+
+  renderSensitivity(fcf, shr, debt, cash, g1, g2, wacc, tg);
+  renderDCFBreak(result.flows, result.pvTV, result.tvFull);
+}
+
+function runDCF(fcf, shr, debt, cash, g1, g2, wacc, tg) {
+  const flows = [];
+  let cf = fcf, pvFCF = 0;
+  for (let y = 1; y <= 10; y++) {
+    const g = y <= 5 ? g1 : g2;
+    cf *= (1 + g);
+    const pv = cf / Math.pow(1 + wacc, y);
+    pvFCF += pv;
+    flows.push({ y, g, cf, pv });
+  }
+  const tvFull = (flows[9].cf * (1 + tg)) / (wacc - tg);
+  const pvTV   = tvFull / Math.pow(1 + wacc, 10);
+  const ev     = pvFCF + pvTV;
+  const eqv    = ev - debt + cash;
+  const iv     = eqv / shr;
+  return { iv, ev, eqv, pvFCF, pvTV, tvFull, flows };
+}
+
+function ivFor(fcf, shr, debt, cash, g1, g2, wacc, tg) {
+  if (wacc <= tg) return null;
+  try { return runDCF(fcf, shr, debt, cash, g1, g2, wacc, tg).iv; }
+  catch { return null; }
+}
+
+function renderSensitivity(fcf, shr, debt, cash, g1, g2, bWACC, bTG) {
+  const wRange = [-0.02, -0.01, 0, +0.01, +0.02].map(d => bWACC + d);
+  const tRange = [-0.01, -0.005, 0, +0.005, +0.01].map(d => bTG + d).filter(t => t > 0 && t < bWACC);
+
+  let hdr = '<table class="sense-tbl"><thead><tr><th>TG \\ WACC</th>';
+  for (const w of wRange) hdr += '<th>' + (w*100).toFixed(1) + '%</th>';
+  hdr += '</tr></thead><tbody>';
+
+  let body = '';
+  for (const tg of tRange) {
+    body += '<tr><td class="rl">' + (tg*100).toFixed(2) + '%</td>';
+    for (const w of wRange) {
+      if (w <= tg) { body += '<td class="mu">N/A</td>'; continue; }
+      const iv = ivFor(fcf, shr, debt, cash, g1, g2, w, tg);
+      const isBase = Math.abs(w - bWACC) < 0.0001 && Math.abs(tg - bTG) < 0.0001;
+      body += '<td class="' + (isBase ? 'base' : '') + '">' + (iv !== null ? fmtDollar(iv) : '\u2014') + '</td>';
+    }
+    body += '</tr>';
+  }
+
+  $i('sense-out').innerHTML = hdr + body + '</tbody></table>' +
+    '<div style="font-size:10px;color:var(--muted);margin-top:6px">' +
+    'BASE CASE HIGHLIGHTED &nbsp;|&nbsp; ROWS = TERMINAL GROWTH &nbsp;|&nbsp; COLS = WACC</div>';
+}
+
+function renderDCFBreak(flows, pvTV, tvFull) {
+  let rows = '';
+  for (const f of flows) {
+    rows += '<tr>' +
+      '<td class="hi">Y' + f.y + '</td>' +
+      '<td>' + (f.g*100).toFixed(1) + '%</td>' +
+      '<td>' + fmtM(f.cf) + '</td>' +
+      '<td class="mu">' + fmtM(f.pv) + '</td>' +
+      '</tr>';
+  }
+  rows += '<tr style="border-top:1px solid var(--amber-dim)">' +
+    '<td class="hi" colspan="2">TERMINAL VALUE</td>' +
+    '<td>' + fmtM(tvFull) + '</td>' +
+    '<td class="pos">' + fmtM(pvTV) + '</td>' +
+    '</tr>';
+
+  $i('dcf-break').innerHTML =
+    '<table class="dt"><thead><tr>' +
+    '<th>YEAR</th><th>GROWTH</th><th>FCF ($M)</th><th>PV ($M)</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function calcRatios() {
+  const price  = parseFloat($i('rprice').value);
+  const eps    = parseFloat($i('reps').value);
+  const bv     = parseFloat($i('rbv').value);
+  const rev    = parseFloat($i('rrev').value);
+  const ebitda = parseFloat($i('rebitda').value);
+  const ni     = parseFloat($i('rni').value);
+  const equity = parseFloat($i('requity').value);
+  const mktcap = parseFloat($i('rmktcap').value);
+  const debt   = parseFloat($i('vdebt').value) || 0;
+  const cash   = parseFloat($i('vcash').value) || 0;
+  const ev     = mktcap + debt - cash;
+
+  const ratios = [
+    { n: 'P/E',           v: (!isNaN(price)&&!isNaN(eps)&&eps)     ? price/eps        : null, f: v => fmt(v,1)+'x' },
+    { n: 'P/B',           v: (!isNaN(price)&&!isNaN(bv)&&bv)       ? price/bv         : null, f: v => fmt(v,1)+'x' },
+    { n: 'EV/REV',        v: (!isNaN(ev)&&!isNaN(rev)&&rev)        ? ev/rev           : null, f: v => fmt(v,1)+'x' },
+    { n: 'EV/EBITDA',     v: (!isNaN(ev)&&!isNaN(ebitda)&&ebitda)  ? ev/ebitda        : null, f: v => fmt(v,1)+'x' },
+    { n: 'ROE',           v: (!isNaN(ni)&&!isNaN(equity)&&equity)  ? (ni/equity)*100  : null, f: v => fmt(v,1)+'%' },
+    { n: 'NET MARGIN',    v: (!isNaN(ni)&&!isNaN(rev)&&rev)        ? (ni/rev)*100     : null, f: v => fmt(v,1)+'%' },
+    { n: 'EBITDA MARGIN', v: (!isNaN(ebitda)&&!isNaN(rev)&&rev)    ? (ebitda/rev)*100 : null, f: v => fmt(v,1)+'%' },
+    { n: 'D/E',           v: (!isNaN(debt)&&!isNaN(equity)&&equity)? debt/equity      : null, f: v => fmt(v,2)+'x' },
+    { n: 'EV ($M)',       v: !isNaN(ev)                             ? ev               : null, f: v => fmtM(v) },
+  ];
+
+  let cards = '';
+  for (const r of ratios) {
+    const display = r.v !== null ? r.f(r.v) : '\u2014';
+    cards += '<div class="rc"><div class="rc-name">' + r.n + '</div><div class="rc-val">' + display + '</div></div>';
+  }
+  $i('ratio-out').innerHTML = '<div class="ratio-grid">' + cards + '</div>';
+  setStatus('RATIOS CALCULATED');
+}
+
+// ── INSIDER TRACKER ─────────────────────────────────────────
+
+async function loadInsider() {
+  const ticker = $i('iticker').value.trim().toUpperCase();
+  if (!ticker) { setStatus('ERROR: ENTER A TICKER', 'var(--red)'); return; }
+
+  const results = $i('i-results');
+  $i('insider-meta').textContent = '';
+  results.innerHTML = '<div class="loading">&#9632; LOOKING UP CIK FOR ' + escH(ticker) + '...</div>';
+  setStatus('LOADING INSIDER DATA FOR ' + ticker + '...');
+
+  try {
+    const found = await getCIK(ticker);
+    if (!found) {
+      results.innerHTML = '<div class="errmsg">TICKER NOT FOUND IN EDGAR: ' + escH(ticker) + '<br><br>Try the full company name instead.</div>';
+      setStatus('CIK NOT FOUND FOR ' + ticker, 'var(--red)');
+      return;
+    }
+    const { cik, name: coName } = found;
+
+    results.innerHTML = '<div class="loading">&#9632; FETCHING SUBMISSIONS FOR ' + escH(coName) + ' (CIK: ' + parseInt(cik) + ')...</div>';
+
+    const subRes = await fetch(SUBMISSIONS + '/CIK' + cik + '.json');
+    if (!subRes.ok) throw new Error('SUBMISSIONS HTTP ' + subRes.status);
+    const sub = await subRes.json();
+
+    const company = sub.name || coName;
+    $i('insider-meta').textContent = company + '  |  CIK: ' + parseInt(cik);
+
+    const recent    = sub.filings?.recent || {};
+    const forms     = recent.form            || [];
+    const accNos    = recent.accessionNumber  || [];
+    const fileDates = recent.filingDate       || [];
+    const primDocs  = recent.primaryDocument  || [];
+
+    const f4Idx = [];
+    for (let i = 0; i < forms.length; i++) {
+      if (forms[i] === '4' || forms[i] === '4/A') f4Idx.push(i);
+    }
+
+    if (!f4Idx.length) {
+      results.innerHTML = '<div class="empty">NO FORM 4 FILINGS FOUND FOR ' + escH(ticker) + ' / ' + escH(company) + '</div>';
+      setStatus('NO FORM 4 FILINGS', 'var(--amber)');
+      return;
+    }
+
+    const TOP = Math.min(f4Idx.length, 25);
+    results.innerHTML = '<div class="loading">&#9632; PARSING ' + TOP + ' FORM 4 FILINGS...</div>';
+
+    const cikInt = parseInt(cik);
+    const transactions = [];
+
+    await Promise.allSettled(
+      f4Idx.slice(0, TOP).map(async (idx) => {
+        const accNo = accNos[idx];
+        const ndash = accNo.replace(/-/g, '');
+        const doc   = primDocs[idx];
+        const fDate = fileDates[idx];
+        try {
+          const xmlRes = await fetch(ARCHIVES + '/' + cikInt + '/' + ndash + '/' + doc);
+          if (!xmlRes.ok) return;
+          const txt = await xmlRes.text();
+          const parser = new DOMParser();
+          const xml = parser.parseFromString(txt, 'text/xml');
+
+          const ownerName = xml.querySelector('rptOwnerName')?.textContent?.trim() || '\u2014';
+          const isDir     = xml.querySelector('isDirector')?.textContent?.trim() === '1';
+          const isOff     = xml.querySelector('isOfficer')?.textContent?.trim() === '1';
+          const is10pct   = xml.querySelector('isTenPercentOwner')?.textContent?.trim() === '1';
+          const offTitle  = xml.querySelector('officerTitle')?.textContent?.trim() || '';
+
+          let rel = isDir ? 'DIRECTOR' : isOff ? (offTitle || 'OFFICER') : is10pct ? '10% OWNER' : 'OTHER';
+          if (rel.length > 22) rel = rel.substring(0, 22);
+
+          xml.querySelectorAll('nonDerivativeTransaction').forEach(t => {
+            const txDate = t.querySelector('transactionDate value')?.textContent?.trim() || fDate;
+            const shares = parseFloat(t.querySelector('transactionShares value')?.textContent || '0');
+            const price  = parseFloat(t.querySelector('transactionPricePerShare value')?.textContent || '0');
+            const adCode = t.querySelector('transactionAcquiredDisposedCode value')?.textContent?.trim() || '';
+            const txCode = t.querySelector('transactionCode value')?.textContent?.trim() || '';
+            const aft    = parseFloat(t.querySelector('sharesOwnedFollowingTransaction value')?.textContent || '0');
+            if (shares > 0) {
+              transactions.push({ fDate, txDate, ownerName, rel, adCode, txCode, shares, price, value: shares * price, aft, cikInt });
+            }
+          });
+        } catch { /* skip */ }
+      })
+    );
+
+    transactions.sort((a, b) => b.txDate.localeCompare(a.txDate));
+
+    if (!transactions.length) {
+      const edgarFallback = 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=' + cikInt + '&type=4&dateb=&owner=include&count=40';
+      results.innerHTML = '<div class="empty">COULD NOT PARSE TRANSACTION DATA FROM FORM 4 FILINGS.<br><br>' +
+        '<a class="td-link" href="' + edgarFallback + '" target="_blank" rel="noopener">VIEW FORM 4 FILINGS ON EDGAR &#8599;</a></div>';
+      return;
+    }
+
+    renderInsider(transactions, ticker, cikInt);
+    setStatus('INSIDER: ' + transactions.length + ' TRANSACTIONS \u2014 ' + company);
+
+  } catch (err) {
+    results.innerHTML = '<div class="errmsg">ERROR: ' + escH(err.message) + '</div>';
+    setStatus('INSIDER ERROR: ' + err.message, 'var(--red)');
+  }
+}
+
+function txLabel(txCode, adCode) {
+  const map = { P: 'PURCHASE', S: 'SALE', A: 'AWARD', M: 'OPT-EXERCISE', G: 'GIFT', F: 'TAX-WITHHELD', D: 'OPT-DISP', C: 'CONV', J: 'OTHER', W: 'WILL/INHERIT' };
+  if (map[txCode]) return map[txCode];
+  return adCode === 'A' ? 'ACQUIRE' : adCode === 'D' ? 'DISPOSE' : (txCode || '\u2014');
+}
+
+function renderInsider(txns, ticker, cikInt) {
+  const edgarUrl = 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=' + cikInt + '&type=4&dateb=&owner=include&count=40&search_text=';
+  const buys   = txns.filter(t => t.txCode === 'P');
+  const sells  = txns.filter(t => t.txCode === 'S');
+  const buyVal  = buys.reduce((s, t) => s + (t.value || 0), 0);
+  const sellVal = sells.reduce((s, t) => s + (t.value || 0), 0);
+
+  let rows = '';
+  for (const t of txns) {
+    const label  = txLabel(t.txCode, t.adCode);
+    const isBuy  = t.txCode === 'P';
+    const isSell = t.txCode === 'S';
+    const cls    = isBuy ? 'pos' : isSell ? 'neg' : 'mu';
+    rows += '<tr>' +
+      '<td>' + t.txDate + '</td>' +
+      '<td title="' + escH(t.ownerName) + '">' + escH(t.ownerName) + '</td>' +
+      '<td class="mu" style="max-width:130px" title="' + escH(t.rel) + '">' + escH(t.rel) + '</td>' +
+      '<td class="' + cls + ' hi">' + label + '</td>' +
+      '<td>' + (t.shares > 0 ? fmtNum(Math.round(t.shares)) : '\u2014') + '</td>' +
+      '<td>' + (t.price > 0 ? fmtDollar(t.price) : '\u2014') + '</td>' +
+      '<td class="' + cls + '">' + (t.value > 0 ? fmtUSD(t.value) : '\u2014') + '</td>' +
+      '<td class="mu">' + (t.aft > 0 ? fmtNum(Math.round(t.aft)) : '\u2014') + '</td>' +
+      '</tr>';
+  }
+
+  $i('i-results').innerHTML =
+    '<div style="display:flex;gap:24px;padding:7px 12px;font-size:10px;border-bottom:1px solid var(--border2);background:var(--surface)">' +
+      '<span>' + txns.length + ' TRANSACTION' + (txns.length!==1?'S':'') +
+        ' &nbsp;|&nbsp; <span class="pos">&#9650; ' + buys.length + ' BUY (' + fmtUSD(buyVal) + ')</span>' +
+        ' &nbsp;|&nbsp; <span class="neg">&#9660; ' + sells.length + ' SELL (' + fmtUSD(sellVal) + ')</span>' +
+      '</span>' +
+      '<a class="td-link" href="' + escH(edgarUrl) + '" target="_blank" rel="noopener noreferrer" style="margin-left:auto">ALL FORM 4s ON EDGAR &#8599;</a>' +
+    '</div>' +
+    '<table class="dt" style="table-layout:fixed">' +
+    '<colgroup>' +
+    '<col style="width:96px"><col style="width:160px"><col style="width:130px">' +
+    '<col style="width:120px"><col style="width:90px"><col style="width:80px">' +
+    '<col style="width:100px"><col style="width:90px">' +
+    '</colgroup>' +
+    '<thead><tr>' +
+    '<th>TX DATE</th><th>INSIDER NAME</th><th>TITLE / REL.</th>' +
+    '<th>TYPE</th><th>SHARES</th><th>PRICE</th><th>TOTAL VALUE</th><th>SHARES AFTER</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '</table>';
+}
+
+// ── WATCHLIST ───────────────────────────────────────────────
+
+function loadWL() {
+  try { watchlist = JSON.parse(localStorage.getItem('po-wl-v2') || '[]'); }
+  catch { watchlist = []; }
+}
+
+function saveWL() { localStorage.setItem('po-wl-v2', JSON.stringify(watchlist)); }
+
+function addWL() {
+  const ticker = $i('wlticker').value.trim().toUpperCase();
+  if (!ticker) { setStatus('ERROR: TICKER REQUIRED', 'var(--red)'); return; }
+  if (watchlist.find(w => w.ticker === ticker)) {
+    setStatus(ticker + ' ALREADY IN WATCHLIST', 'var(--amber)'); return;
+  }
+  watchlist.push({
+    ticker,
+    name:  $i('wlname').value.trim() || ticker,
+    iv:    parseFloat($i('wliv').value) || null,
+    notes: $i('wlnotes').value.trim(),
+    added: new Date().toISOString().split('T')[0],
+  });
+  saveWL();
+  $i('wlticker').value = '';
+  $i('wlname').value   = '';
+  $i('wliv').value     = '';
+  $i('wlnotes').value  = '';
+  renderWL();
+  setStatus(ticker + ' ADDED TO WATCHLIST');
+}
+
+function removeWL(ticker) {
+  watchlist = watchlist.filter(w => w.ticker !== ticker);
+  if (wlSelected === ticker) wlSelected = null;
+  saveWL();
+  renderWL();
+  setStatus(ticker + ' REMOVED FROM WATCHLIST');
+}
+
+function selectWL(ticker) {
+  wlSelected = wlSelected === ticker ? null : ticker;
+  renderWL();
+}
+
+function goFilings(ticker) {
+  $i('fq').value = ticker;
+  switchPanel('filings');
+  searchEDGAR();
+}
+
+function goInsider(ticker) {
+  $i('iticker').value = ticker;
+  switchPanel('insider');
+  loadInsider();
+}
+
+function exportWL() {
+  const blob = new Blob([JSON.stringify(watchlist, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pocket-outlook-watchlist-' + new Date().toISOString().split('T')[0] + '.json';
+  a.click();
+}
+
+function renderWL() {
+  const container = $i('wl-items');
+  $i('wl-count').textContent = watchlist.length
+    ? watchlist.length + ' TICKER' + (watchlist.length !== 1 ? 'S' : '') + ' TRACKED'
+    : 'WATCHLIST EMPTY';
+
+  if (!watchlist.length) {
+    container.innerHTML = '<div class="empty">WATCHLIST IS EMPTY.<br>ADD TICKERS TO TRACK RESEARCH.</div>';
+    return;
+  }
+
+  let rows = '';
+  for (const item of watchlist) {
+    const sel = wlSelected === item.ticker;
+    rows += '<tr style="cursor:pointer' + (sel ? ';background:var(--surface2)' : '') + '" onclick="selectWL(\'' + escH(item.ticker) + '\')">' +
+      '<td class="hi" style="font-size:13px' + (sel ? ';border-left:2px solid var(--amber)' : '') + '">' + escH(item.ticker) + '</td>' +
+      '<td title="' + escH(item.name) + '">' + escH(item.name) + '</td>' +
+      '<td class="mu">' + item.added + '</td>' +
+      '<td class="' + (item.iv ? 'pos' : 'mu') + '">' + (item.iv ? fmtDollar(item.iv) : '\u2014') + '</td>' +
+      '<td class="mu" style="max-width:200px" title="' + escH(item.notes || '') + '">' +
+        (item.notes ? escH(item.notes.substring(0, 60)) + (item.notes.length > 60 ? '\u2026' : '') : '\u2014') +
+      '</td>' +
+      '<td>' +
+        '<button class="btn" style="font-size:9px;padding:2px 5px" onclick="event.stopPropagation();goFilings(\'' + escH(item.ticker) + '\')">FILINGS</button> ' +
+        '<button class="btn" style="font-size:9px;padding:2px 5px" onclick="event.stopPropagation();goInsider(\'' + escH(item.ticker) + '\')">INSIDER</button> ' +
+        '<button class="btn btn-r" style="font-size:9px;padding:2px 5px" onclick="event.stopPropagation();removeWL(\'' + escH(item.ticker) + '\')">DEL</button>' +
+      '</td>' +
+      '</tr>';
+
+    if (sel) {
+      rows += '<tr style="background:var(--surface2)">' +
+        '<td colspan="6" style="padding:0">' +
+          '<div class="wl-detail-panel">' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+              '<span style="font-size:15px;font-weight:bold;color:var(--amber)">' + escH(item.ticker) + '</span>' +
+              '<span style="color:var(--muted);font-size:11px">' + escH(item.name) + '</span>' +
+            '</div>' +
+            '<div class="wl-detail-grid">' +
+              '<div><div class="dk">ADDED</div><div class="dv">' + item.added + '</div></div>' +
+              '<div><div class="dk">INTRINSIC VALUE</div><div class="dv ' + (item.iv ? 'pos' : 'mu') + '">' + (item.iv ? fmtDollar(item.iv) : 'NOT SET') + '</div></div>' +
+            '</div>' +
+            (item.notes ? '<div style="margin-top:10px"><div class="dk" style="margin-bottom:4px">RESEARCH NOTES</div><div class="wl-notes-area">' + escH(item.notes) + '</div></div>' : '') +
+            '<div style="margin-top:10px;display:flex;gap:6px">' +
+              '<button class="btn btn-a" style="font-size:10px" onclick="goFilings(\'' + escH(item.ticker) + '\')">SEARCH EDGAR FILINGS &#8594;</button>' +
+              '<button class="btn btn-a" style="font-size:10px" onclick="goInsider(\'' + escH(item.ticker) + '\')">LOAD INSIDER ACTIVITY &#8594;</button>' +
+            '</div>' +
+          '</div>' +
+        '</td>' +
+        '</tr>';
+    }
+  }
+
+  container.innerHTML =
+    '<table class="dt" style="table-layout:fixed">' +
+    '<colgroup>' +
+    '<col style="width:70px"><col style="width:180px"><col style="width:90px">' +
+    '<col style="width:110px"><col><col style="width:190px">' +
+    '</colgroup>' +
+    '<thead><tr>' +
+    '<th>TICKER</th><th>COMPANY</th><th>ADDED</th>' +
+    '<th>INTRINSIC VALUE</th><th>NOTES</th><th>ACTIONS</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '</table>';
+}
+
+// ── INIT ────────────────────────────────────────────────────
+
+function init() {
+  loadWL();
+  const today = new Date();
+  const prior = new Date(today);
+  prior.setFullYear(today.getFullYear() - 5);
+  $i('fstart').value = prior.toISOString().split('T')[0];
+  $i('fend').value   = today.toISOString().split('T')[0];
+  setStatus('POCKET OUTLOOK v2.0 \u2014 READY \u2014 SEC EDGAR RESEARCH TERMINAL');
+}
+
+init();
+</script>
 </body>
 </html>
