@@ -433,10 +433,10 @@ textarea { resize: vertical; min-height: 56px; }
 //  Single-file inline app. No paid APIs. All public data.
 // ══════════════════════════════════════════════════════════════
 
-const EFTS         = 'https://efts.sec.gov/LATEST/search-index';
-const SUBMISSIONS  = 'https://data.sec.gov/submissions';
-const ARCHIVES     = '/edgar-archive';          // proxied via nginx → www.sec.gov/Archives/edgar/data
-const ARCHIVES_SEC = 'https://www.sec.gov/Archives/edgar/data'; // direct link (href only, not fetched)
+const EFTS         = '/api/efts';               // proxied → efts.sec.gov/LATEST/search-index
+const SUBMISSIONS  = '/api/submissions';         // proxied → data.sec.gov/submissions
+const ARCHIVES     = '/edgar-archive';           // proxied → www.sec.gov/Archives/edgar/data
+const ARCHIVES_SEC = 'https://www.sec.gov/Archives/edgar/data'; // direct href links only (not fetched)
 
 let watchlist  = [];
 let wlSelected = null;
