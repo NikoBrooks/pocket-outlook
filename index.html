@@ -311,6 +311,13 @@ textarea { resize: vertical; min-height: 56px; }
 
       <!-- Col 1: Inputs -->
       <div class="v-col">
+        <div class="sh">FETCH FROM EDGAR</div>
+        <div style="display:flex;gap:6px;margin-bottom:4px">
+          <input type="text" id="vedgar" placeholder="TICKER OR COMPANY (e.g. AAPL)" style="flex:1;text-transform:uppercase" onkeydown="if(event.key==='Enter')loadEdgarData()">
+          <button class="btn btn-a" onclick="loadEdgarData()">FETCH &#8594;</button>
+        </div>
+        <div id="edgar-load-meta" style="font-size:10px;color:var(--muted);margin-bottom:10px"></div>
+
         <div class="sh">DCF INPUTS</div>
         <div class="ig">
           <div class="ir"><label>LAST FCF ($M)</label><input type="number" id="vfcf" placeholder="e.g. 90000"></div>
@@ -576,54 +583,103 @@ async function searchEDGAR() {
   const forms = getActiveForms();
   if (!forms.length) { setStatus('ERROR: SELECT AT LEAST ONE FORM TYPE', 'var(--red)'); return; }
 
-  const start = $i('fstart').value.trim();
-  const end   = $i('fend').value.trim();
+  const start   = $i('fstart').value.trim();
+  const end     = $i('fend').value.trim();
   const results = $i('f-results');
-  results.innerHTML = '<div class="loading">&#9632; QUERYING SEC EDGAR EFTS...</div>';
+  results.innerHTML = '<div class="loading">&#9632; RESOLVING COMPANY...</div>';
   setStatus('SEARCHING EDGAR: "' + query.toUpperCase() + '"...');
 
   try {
-    // Search by entity name first (best for "Apple", "AAPL", "Tesla", etc.)
-    // then fall back to full-text if entity search returns nothing
-    const buildParams = (type) => {
-      const p = new URLSearchParams({ forms: forms.join(','), from: 0, size: 50 });
-      if (type === 'entity') p.set('entity', query);
-      else p.set('q', query); // broad full-text, no quotes
-      if (start || end) p.set('dateRange', 'custom');
-      if (start) p.set('startdt', start);
-      if (end)   p.set('enddt', end);
-      return p;
-    };
+    // Resolve query to a specific company CIK first for precise results
+    const found = await getCIK(query);
 
-    let res = await fetch(EFTS + '?' + buildParams('entity'));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    let data = await res.json();
+    if (found) {
+      // Pull filings directly from submissions API — exact company, no ambiguity
+      results.innerHTML = '<div class="loading">&#9632; FETCHING FILINGS FOR ' + escH(found.name.toUpperCase()) + '...</div>';
+      const subRes = await fetch(SUBMISSIONS + '/CIK' + found.cik + '.json');
+      if (!subRes.ok) throw new Error('SUBMISSIONS HTTP ' + subRes.status);
+      const sub = await subRes.json();
 
-    // Fall back to full-text search if entity search has no hits
-    if (!data.hits?.hits?.length) {
-      res  = await fetch(EFTS + '?' + buildParams('fulltext'));
+      const recent  = sub.filings?.recent || {};
+      const rForms  = recent.form             || [];
+      const rAccNos = recent.accessionNumber  || [];
+      const rDates  = recent.filingDate       || [];
+      const rPeriod = recent.reportDate       || [];
+
+      const formSet = new Set(forms);
+      const filings = [];
+      for (let i = 0; i < rForms.length; i++) {
+        if (!formSet.has(rForms[i])) continue;
+        if (start && rDates[i] < start) continue;
+        if (end   && rDates[i] > end)   continue;
+        filings.push({ form: rForms[i], filed: rDates[i], period: rPeriod[i] || '\u2014', accNo: rAccNos[i], cikInt: parseInt(found.cik) });
+      }
+
+      $i('f-count').textContent = filings.length + ' RESULT' + (filings.length !== 1 ? 'S' : '');
+      setStatus('EDGAR: ' + filings.length + ' FILING' + (filings.length !== 1 ? 'S' : '') + ' \u2014 ' + found.name.toUpperCase());
+
+      if (!filings.length) {
+        results.innerHTML = '<div class="empty">NO FILINGS FOUND FOR ' + escH(found.name) + ' WITH SELECTED FORM TYPES / DATE RANGE.</div>';
+        return;
+      }
+      renderFilings(filings, found.name, parseInt(found.cik));
+
+    } else {
+      // Unknown company — fall back to EFTS keyword search
+      results.innerHTML = '<div class="loading">&#9632; KEYWORD SEARCH IN EDGAR...</div>';
+      const params = new URLSearchParams({ q: query, forms: forms.join(','), from: 0, size: 50 });
+      if (start || end) params.set('dateRange', 'custom');
+      if (start) params.set('startdt', start);
+      if (end)   params.set('enddt', end);
+
+      const res  = await fetch(EFTS + '?' + params);
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      data = await res.json();
-    }
+      const data = await res.json();
+      const hits  = data.hits?.hits || [];
+      const total = data.hits?.total?.value || 0;
 
-    const hits  = data.hits?.hits || [];
-    const total = data.hits?.total?.value || 0;
-    $i('f-count').textContent = total.toLocaleString() + ' RESULT' + (total !== 1 ? 'S' : '');
-    setStatus('EDGAR: ' + total.toLocaleString() + ' FILING' + (total !== 1 ? 'S' : '') + ' FOUND FOR "' + query.toUpperCase() + '"');
+      $i('f-count').textContent = total.toLocaleString() + ' RESULT' + (total !== 1 ? 'S' : '');
+      setStatus('EDGAR KEYWORD: ' + total.toLocaleString() + ' RESULTS FOR "' + query.toUpperCase() + '"');
 
-    if (!hits.length) {
-      results.innerHTML = '<div class="empty">NO FILINGS FOUND.<br>TRY A DIFFERENT QUERY, DATE RANGE, OR FORM TYPE.</div>';
-      return;
+      if (!hits.length) {
+        results.innerHTML = '<div class="empty">NO FILINGS FOUND. TRY A DIFFERENT QUERY.</div>';
+        return;
+      }
+      renderFilingsEFTS(hits, total);
     }
-    renderFilings(hits, total);
 
   } catch (err) {
-    results.innerHTML = '<div class="errmsg">EDGAR API ERROR: ' + escH(err.message) + '<br><br>SEC EDGAR may be temporarily unavailable. Try again shortly.</div>';
-    setStatus('EDGAR SEARCH ERROR: ' + err.message, 'var(--red)');
+    results.innerHTML = '<div class="errmsg">EDGAR ERROR: ' + escH(err.message) + '</div>';
+    setStatus('EDGAR ERROR: ' + err.message, 'var(--red)');
   }
 }
 
-function renderFilings(hits, total) {
+// Render filings from submissions API (company-specific, most common path)
+function renderFilings(filings, companyName, cikInt) {
+  let rows = '';
+  for (const f of filings.slice(0, 60)) {
+    const accNoDash = f.accNo.replace(/-/g, '');
+    const fileUrl   = ARCHIVES_SEC + '/' + f.cikInt + '/' + accNoDash + '/';
+    rows += '<tr>' +
+      '<td title="' + escH(companyName) + '">' + escH(companyName) + '</td>' +
+      '<td class="hi">' + f.form + '</td>' +
+      '<td>' + f.filed + '</td>' +
+      '<td class="mu">' + f.period + '</td>' +
+      '<td class="mu">' + cikInt + '</td>' +
+      '<td><a class="td-link" href="' + escH(fileUrl) + '" target="_blank" rel="noopener noreferrer">EDGAR&nbsp;&#8599;</a></td>' +
+      '</tr>';
+  }
+  let html = '<div style="padding:6px 12px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border2)">' +
+    escH(companyName) + ' &nbsp;|&nbsp; CIK: ' + cikInt + '</div>' +
+    '<table class="dt" style="table-layout:fixed">' +
+    '<colgroup><col style="width:200px"><col style="width:80px"><col style="width:100px"><col style="width:100px"><col style="width:90px"><col style="width:70px"></colgroup>' +
+    '<thead><tr><th>COMPANY</th><th>FORM</th><th>FILED DATE</th><th>PERIOD</th><th>CIK</th><th>LINK</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table>';
+  $i('f-results').innerHTML = html;
+}
+
+// Render filings from EFTS keyword fallback
+function renderFilingsEFTS(hits, total) {
   let rows = '';
   for (const hit of hits) {
     const src    = hit._source || {};
@@ -632,47 +688,104 @@ function renderFilings(hits, total) {
     const form   = escH(src.form_type || '\u2014');
     const filed  = src.file_date || '\u2014';
     const period = src.period_of_report || '\u2014';
-
     let cik = '';
-    if (src.display_names?.[0]) {
-      const m = src.display_names[0].match(/CIK\s+(\d+)/i);
-      if (m) cik = m[1];
-    }
-
+    if (src.display_names?.[0]) { const m = src.display_names[0].match(/CIK\s+(\d+)/i); if (m) cik = m[1]; }
     const accNoDash = accNo.replace(/-/g, '');
     const cikInt    = cik ? parseInt(cik) : '';
-    const fileUrl   = cikInt
-      ? ARCHIVES_SEC + '/' + cikInt + '/' + accNoDash + '/'
-      : 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=' + cik + '&type=' + encodeURIComponent(src.form_type || '') + '&dateb=&owner=include&count=10';
-
+    const fileUrl   = cikInt ? ARCHIVES_SEC + '/' + cikInt + '/' + accNoDash + '/' : '#';
     rows += '<tr>' +
-      '<td title="' + co + '">' + co + '</td>' +
-      '<td class="hi">' + form + '</td>' +
-      '<td>' + filed + '</td>' +
-      '<td class="mu">' + period + '</td>' +
+      '<td title="' + co + '">' + co + '</td><td class="hi">' + form + '</td>' +
+      '<td>' + filed + '</td><td class="mu">' + period + '</td>' +
       '<td class="mu">' + (cik || '\u2014') + '</td>' +
-      '<td><a class="td-link" href="' + escH(fileUrl) + '" target="_blank" rel="noopener noreferrer">EDGAR&nbsp;&#8599;</a></td>' +
-      '</tr>';
+      '<td><a class="td-link" href="' + escH(fileUrl) + '" target="_blank" rel="noopener noreferrer">EDGAR&nbsp;&#8599;</a></td></tr>';
   }
-
   let html = '<table class="dt" style="table-layout:fixed">' +
-    '<colgroup>' +
-    '<col style="width:220px"><col style="width:80px"><col style="width:100px">' +
-    '<col style="width:100px"><col style="width:90px"><col style="width:70px">' +
-    '</colgroup>' +
-    '<thead><tr>' +
-    '<th>COMPANY</th><th>FORM</th><th>FILED DATE</th>' +
-    '<th>PERIOD</th><th>CIK</th><th>LINK</th>' +
-    '</tr></thead>' +
-    '<tbody>' + rows + '</tbody>' +
-    '</table>';
-
-  if (total > hits.length) {
-    html += '<div style="padding:8px 12px;font-size:10px;color:var(--muted)">' +
-      'SHOWING ' + hits.length + ' OF ' + total.toLocaleString() + ' \u2014 REFINE QUERY OR NARROW DATE RANGE FOR MORE SPECIFIC RESULTS.' +
-      '</div>';
-  }
+    '<colgroup><col style="width:200px"><col style="width:80px"><col style="width:100px"><col style="width:100px"><col style="width:90px"><col style="width:70px"></colgroup>' +
+    '<thead><tr><th>COMPANY</th><th>FORM</th><th>FILED DATE</th><th>PERIOD</th><th>CIK</th><th>LINK</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table>';
+  if (total > hits.length) html += '<div style="padding:8px 12px;font-size:10px;color:var(--muted)">SHOWING ' + hits.length + ' OF ' + total.toLocaleString() + '</div>';
   $i('f-results').innerHTML = html;
+}
+
+// ── EDGAR XBRL DATA → VALUATION AUTO-FILL ───────────────────
+
+function getLatestFact(facts, concept) {
+  const c = facts?.[concept];
+  if (!c?.units) return null;
+  const units = c.units['USD'] || c.units['shares'] || Object.values(c.units)[0];
+  if (!units?.length) return null;
+  // Prefer annual (10-K) filings, most recent end date
+  const annual = units.filter(u => u.form === '10-K').sort((a, b) => b.end.localeCompare(a.end));
+  if (annual.length) return annual[0].val;
+  return units.sort((a, b) => b.end.localeCompare(a.end))[0]?.val ?? null;
+}
+
+async function loadEdgarData() {
+  const query = $i('vedgar').value.trim();
+  if (!query) { setStatus('ERROR: ENTER A TICKER OR COMPANY NAME', 'var(--red)'); return; }
+
+  const meta = $i('edgar-load-meta');
+  meta.textContent = 'RESOLVING ' + query.toUpperCase() + '...';
+  meta.style.color = 'var(--amber-dim)';
+  setStatus('FETCHING EDGAR FINANCIALS FOR ' + query.toUpperCase() + '...');
+
+  try {
+    const found = await getCIK(query);
+    if (!found) {
+      meta.textContent = 'COMPANY NOT FOUND: ' + query.toUpperCase();
+      meta.style.color = 'var(--red-dim)';
+      return;
+    }
+
+    meta.textContent = 'LOADING XBRL DATA FOR ' + found.name.toUpperCase() + '...';
+
+    const res = await fetch('/api/xbrl/companyfacts/CIK' + found.cik + '.json');
+    if (!res.ok) throw new Error('XBRL HTTP ' + res.status);
+    const data = await res.json();
+
+    const gaap = data.facts?.['us-gaap'] || {};
+    const dei  = data.facts?.['dei']     || {};
+
+    // Operating CF - CapEx = Free Cash Flow
+    const opCF  = getLatestFact(gaap, 'NetCashProvidedByUsedInOperatingActivities');
+    const capex = getLatestFact(gaap, 'PaymentsToAcquirePropertyPlantAndEquipment');
+    const fcf   = (opCF != null && capex != null) ? opCF - capex : opCF;
+
+    const debt    = getLatestFact(gaap, 'LongTermDebtNoncurrent')
+                 ?? getLatestFact(gaap, 'LongTermDebt')
+                 ?? getLatestFact(gaap, 'DebtCurrent');
+    const cash    = getLatestFact(gaap, 'CashAndCashEquivalentsAtCarryingValue')
+                 ?? getLatestFact(gaap, 'CashCashEquivalentsAndShortTermInvestments');
+    const shares  = getLatestFact(dei,  'EntityCommonStockSharesOutstanding');
+    const rev     = getLatestFact(gaap, 'RevenueFromContractWithCustomerExcludingAssessedTax')
+                 ?? getLatestFact(gaap, 'Revenues')
+                 ?? getLatestFact(gaap, 'SalesRevenueNet');
+    const ni      = getLatestFact(gaap, 'NetIncomeLoss');
+    const equity  = getLatestFact(gaap, 'StockholdersEquity')
+                 ?? getLatestFact(gaap, 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest');
+
+    // Populate DCF inputs (values stored in dollars, inputs expect millions)
+    if (fcf    != null) $i('vfcf').value   = (fcf   / 1e6).toFixed(0);
+    if (debt   != null) $i('vdebt').value  = (debt  / 1e6).toFixed(0);
+    if (cash   != null) $i('vcash').value  = (cash  / 1e6).toFixed(0);
+    if (shares != null) $i('vshr').value   = (shares / 1e6).toFixed(1);
+
+    // Populate ratio inputs
+    if (rev    != null) $i('rrev').value    = (rev    / 1e6).toFixed(0);
+    if (ni     != null) $i('rni').value     = (ni     / 1e6).toFixed(0);
+    if (equity != null) $i('requity').value = (equity / 1e6).toFixed(0);
+    if (debt   != null) $i('vdebt').value   = (debt   / 1e6).toFixed(0);
+
+    const filled = [fcf, debt, cash, shares, rev, ni, equity].filter(v => v != null).length;
+    meta.textContent = found.name.toUpperCase() + '  |  CIK: ' + parseInt(found.cik) + '  |  ' + filled + '/7 FIELDS POPULATED FROM XBRL';
+    meta.style.color = 'var(--green-dim)';
+    setStatus('EDGAR XBRL LOADED \u2014 ' + found.name.toUpperCase() + ' \u2014 REVIEW AND ADJUST INPUTS BEFORE CALCULATING');
+
+  } catch (err) {
+    meta.textContent = 'ERROR: ' + err.message;
+    meta.style.color = 'var(--red-dim)';
+    setStatus('EDGAR XBRL ERROR: ' + err.message, 'var(--red)');
+  }
 }
 
 // ── DCF VALUATION ───────────────────────────────────────────
