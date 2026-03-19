@@ -433,14 +433,13 @@ textarea { resize: vertical; min-height: 56px; }
 //  Single-file inline app. No paid APIs. All public data.
 // ══════════════════════════════════════════════════════════════
 
-const EFTS        = 'https://efts.sec.gov/LATEST/search-index';
-const SUBMISSIONS = 'https://data.sec.gov/submissions';
-const ARCHIVES    = 'https://www.sec.gov/Archives/edgar/data';
-const TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
+const EFTS         = 'https://efts.sec.gov/LATEST/search-index';
+const SUBMISSIONS  = 'https://data.sec.gov/submissions';
+const ARCHIVES     = '/edgar-archive';          // proxied via nginx → www.sec.gov/Archives/edgar/data
+const ARCHIVES_SEC = 'https://www.sec.gov/Archives/edgar/data'; // direct link (href only, not fetched)
 
-let TICKERS_CACHE = null;
-let watchlist     = [];
-let wlSelected    = null;
+let watchlist  = [];
+let wlSelected = null;
 
 // ── UTILS ───────────────────────────────────────────────────
 
@@ -532,25 +531,34 @@ document.addEventListener('keydown', e => {
   if (e.key === 'F5') { e.preventDefault(); switchPanel('watchlist'); }
 });
 
-// ── EDGAR TICKERS / CIK LOOKUP ──────────────────────────────
-
-async function fetchTickers() {
-  if (TICKERS_CACHE) return TICKERS_CACHE;
-  setStatus('LOADING EDGAR TICKER DATABASE (~3MB)...');
-  const res = await fetch(TICKERS_URL);
-  TICKERS_CACHE = await res.json();
-  setStatus('EDGAR TICKER DATABASE CACHED');
-  return TICKERS_CACHE;
-}
+// ── EDGAR CIK LOOKUP ────────────────────────────────────────
+// Resolves any ticker or company name → CIK via EFTS entity search.
+// No large file download needed — fast single API call.
 
 async function getCIK(query) {
-  const tickers = await fetchTickers();
-  const q = query.trim().toUpperCase();
-  const byTicker = Object.values(tickers).find(t => t.ticker.toUpperCase() === q);
-  if (byTicker) return { cik: String(byTicker.cik_str).padStart(10, '0'), name: byTicker.title };
-  const ql = query.toLowerCase();
-  const byName = Object.values(tickers).find(t => t.title.toLowerCase().includes(ql));
-  if (byName) return { cik: String(byName.cik_str).padStart(10, '0'), name: byName.title };
+  const q = query.trim();
+  setStatus('RESOLVING: ' + q.toUpperCase() + '...');
+
+  // Try entity search (works for both tickers and company names)
+  const searches = [
+    new URLSearchParams({ entity: q, forms: '10-K,10-Q', from: 0, size: 3 }),
+    new URLSearchParams({ entity: q, from: 0, size: 3 }),
+    new URLSearchParams({ q: q, forms: '10-K,10-Q', from: 0, size: 3 }),
+  ];
+
+  for (const params of searches) {
+    try {
+      const res = await fetch(EFTS + '?' + params);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const hit = data.hits?.hits?.[0];
+      if (!hit) continue;
+      const src = hit._source || {};
+      const dn  = src.display_names?.[0] || '';
+      const m   = dn.match(/CIK\s+(\d+)/i);
+      if (m) return { cik: m[1].padStart(10, '0'), name: src.entity_name || q };
+    } catch { continue; }
+  }
   return null;
 }
 
@@ -575,14 +583,28 @@ async function searchEDGAR() {
   setStatus('SEARCHING EDGAR: "' + query.toUpperCase() + '"...');
 
   try {
-    const params = new URLSearchParams({ q: '"' + query + '"', forms: forms.join(','), from: 0, size: 50 });
-    if (start || end) params.set('dateRange', 'custom');
-    if (start) params.set('startdt', start);
-    if (end)   params.set('enddt', end);
+    // Search by entity name first (best for "Apple", "AAPL", "Tesla", etc.)
+    // then fall back to full-text if entity search returns nothing
+    const buildParams = (type) => {
+      const p = new URLSearchParams({ forms: forms.join(','), from: 0, size: 50 });
+      if (type === 'entity') p.set('entity', query);
+      else p.set('q', query); // broad full-text, no quotes
+      if (start || end) p.set('dateRange', 'custom');
+      if (start) p.set('startdt', start);
+      if (end)   p.set('enddt', end);
+      return p;
+    };
 
-    const res = await fetch(EFTS + '?' + params);
+    let res = await fetch(EFTS + '?' + buildParams('entity'));
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    let data = await res.json();
+
+    // Fall back to full-text search if entity search has no hits
+    if (!data.hits?.hits?.length) {
+      res  = await fetch(EFTS + '?' + buildParams('fulltext'));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      data = await res.json();
+    }
 
     const hits  = data.hits?.hits || [];
     const total = data.hits?.total?.value || 0;
@@ -620,7 +642,7 @@ function renderFilings(hits, total) {
     const accNoDash = accNo.replace(/-/g, '');
     const cikInt    = cik ? parseInt(cik) : '';
     const fileUrl   = cikInt
-      ? ARCHIVES + '/' + cikInt + '/' + accNoDash + '/'
+      ? ARCHIVES_SEC + '/' + cikInt + '/' + accNoDash + '/'
       : 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=' + cik + '&type=' + encodeURIComponent(src.form_type || '') + '&dateb=&owner=include&count=10';
 
     rows += '<tr>' +
